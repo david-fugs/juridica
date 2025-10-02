@@ -14,6 +14,11 @@
     $usuario = isset($_POST['usuario']) ? $mysqli->real_escape_string(trim($_POST['usuario'])) : '';
     $tipo_usuario = isset($_POST['tipo_usuario']) ? intval($_POST['tipo_usuario']) : 0;
     $password = isset($_POST['password']) ? $_POST['password'] : '';
+    $documento = isset($_POST['documento']) ? $mysqli->real_escape_string(trim($_POST['documento'])) : '';
+    $email = isset($_POST['email']) ? $mysqli->real_escape_string(trim($_POST['email'])) : '';
+    $area = isset($_POST['area']) ? $mysqli->real_escape_string(trim($_POST['area'])) : '';
+    $responsabilidades = isset($_POST['responsabilidades']) ? $mysqli->real_escape_string(trim($_POST['responsabilidades'])) : '';
+    $observaciones = isset($_POST['observaciones']) ? $mysqli->real_escape_string(trim($_POST['observaciones'])) : '';
 
     if($id <= 0 || empty($nombre) || empty($usuario) || ($tipo_usuario !== 1 && $tipo_usuario !== 2)){
         echo json_encode(['success' => false, 'message' => 'Datos incompletos o inválidos']);
@@ -32,6 +37,11 @@
     $fields[] = "nombre = '$nombre'";
     $fields[] = "usuario = '$usuario'";
     $fields[] = "tipo_usuario = '$tipo_usuario'";
+    $fields[] = "documento = '$documento'";
+    $fields[] = "email = '$email'";
+    $fields[] = "area = '$area'";
+    $fields[] = "responsabilidades = '$responsabilidades'";
+    $fields[] = "observaciones = '$observaciones'";
 
     if(!empty($password)){
         // encriptar con sha1

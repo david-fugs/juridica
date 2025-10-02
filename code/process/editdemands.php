@@ -44,7 +44,81 @@
           }
           $(document).ready(function () {
             ordenarSelect('selectJur');
-          });
+                        // Initialize Select2 on the abogado select for better UX
+                        if(window.jQuery && jQuery().select2){
+                                jQuery('#selectJur').select2({ width: '100%' });
+                        }
+                        // SweetAlert2 include (CDN)
+                        if(typeof Swal === 'undefined'){
+                            var script = document.createElement('script');
+                            script.src = 'https://cdn.jsdelivr.net/npm/sweetalert2@11';
+                            document.head.appendChild(script);
+                        }
+
+                        // Intercept form submit and send via AJAX
+                        $('#selectJur').closest('form').on('submit', function(e){
+                            e.preventDefault();
+                            var form = this;
+                            var $form = $(form);
+                            // Basic HTML5 validity check
+                            if(!form.checkValidity()){
+                                // Let browser show validation UI
+                                form.reportValidity();
+                                return;
+                            }
+
+                            // Collect form data
+                            var formData = $form.serialize();
+
+                            // Show confirmation before sending
+                            var accionante = $('#accionante_dem').val();
+                            var rad = $('#rad_dem').val();
+                            var abogadoText = $('#selectJur option:selected').text();
+
+                            Swal.fire({
+                                title: '¿Actualizar demanda?',
+                                html: '<b>Accionante:</b> ' + $('<div>').text(accionante).html() + '<br/><b>Radicado:</b> ' + $('<div>').text(rad).html() + '<br/><b>Abogado:</b> ' + $('<div>').text(abogadoText).html(),
+                                icon: 'question',
+                                showCancelButton: true,
+                                confirmButtonText: 'Sí, actualizar',
+                                cancelButtonText: 'Cancelar'
+                            }).then((result) => {
+                                if(result.isConfirmed){
+                                    // Send AJAX
+                                    $.ajax({
+                                        url: 'editdemands1.php',
+                                        method: 'POST',
+                                        data: formData,
+                                        dataType: 'json'
+                                    }).done(function(resp){
+                                        if(resp && resp.success){
+                                            Swal.fire({
+                                                title: 'Actualizado',
+                                                text: resp.message || 'Demanda actualizada correctamente',
+                                                icon: 'success',
+                                                confirmButtonText: 'Aceptar'
+                                            }).then(()=>{
+                                                // Optionally redirect back to list or stay; go back in history
+                                                window.location.href = 'showdemands.php';
+                                            });
+                                        } else {
+                                            Swal.fire({
+                                                title: 'Error',
+                                                text: (resp && resp.message) ? resp.message : 'Error desconocido al actualizar',
+                                                icon: 'error'
+                                            });
+                                        }
+                                    }).fail(function(jqXHR, textStatus, errorThrown){
+                                        Swal.fire({
+                                            title: 'Error de red',
+                                            text: 'No se pudo conectar con el servidor: ' + textStatus,
+                                            icon: 'error'
+                                        });
+                                    });
+                                }
+                            });
+                        });
+                    });
     </script>
 </head>
 <body >
@@ -55,22 +129,24 @@
         $id_dem  = $_GET['id_dem'];
         if(isset($_GET['id_dem']))
         { 
-            $sql = mysqli_query($mysqli, "SELECT * FROM `demandas` INNER JOIN `juridicos` ON demandas.doc_jur=juridicos.doc_jur WHERE demandas.id_dem = '$id_dem'");
+            // Obtener la demanda y el nombre del abogado desde la tabla usuarios (documento)
+            $sql = mysqli_query($mysqli, "SELECT demandas.*, usuarios.nombre as nom_jur FROM `demandas` LEFT JOIN `usuarios` ON demandas.doc_jur = usuarios.documento WHERE demandas.id_dem = '$id_dem'");
             $row = mysqli_fetch_array($sql);
             //$row = $result->fetch_assoc();
         }
 
     ?>
 
-   	<div class="container">
+    	<div class="container">
         <center>
             <img src='../../img/logo_educacion.png' width=600 height=121 class='responsive'>
         </center>
-
         <h1><b><img src="../../img/claims.png" width=35 height=35> ACTUALIZAR INFORMACIÓN DEMANDAS <img src="../../img/claims.png" width=35 height=35></b></h1>
         <p><i><b><font size=3 color=#c68615>* Datos obligatorios</i></b></font></p>
         
-        <form action='editclaims1.php' method="POST">
+        <div class="card mt-3 shadow-sm">
+            <div class="card-body">
+                <form action='editdemands1.php' method="POST">
             
             <hr style="border: 2px solid #16087B; border-radius: 2px;">
             <div class="form-group">
@@ -123,20 +199,22 @@
                 <div class="row">
                     <div class="col-12 col-sm-4">
                         <label for="doc_jur">ABOGADO ASIGNADO:</label>
-                        <select name='doc_jur' class='form-control' id="selectJur" required />
+                        <select name='doc_jur' class='form-control' id="selectJur" required>
                             <option value=''></option>
                             <?php
                                 header('Content-Type: text/html;charset=utf-8');
-                                $consulta='SELECT * FROM juridicos';
-                                $res = mysqli_query($mysqli,$consulta);
-                                $num_reg = mysqli_num_rows($res);
-                                while($row1 = $res->fetch_array())
-                                {
-                                ?> 
-                                    <option value='<?php echo $row1['doc_jur']; ?>'<?php if($row['doc_jur']==$row1['doc_jur']){echo 'selected';} ?>>
-                                        <?php echo $row1['nom_jur']; ?>
+                                // Poblar desde tabla usuarios (documento => nombre) filtrando abogados (tipo_usuario = 2)
+                                $consulta = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre ASC";
+                                $res = mysqli_query($mysqli, $consulta);
+                                if($res){
+                                    while($row1 = $res->fetch_assoc())
+                                    {
+                            ?>
+                                    <option value='<?php echo htmlspecialchars($row1['documento']); ?>' <?php if($row['doc_jur']==$row1['documento']){echo 'selected';} ?>>
+                                        <?php echo htmlspecialchars($row1['nombre']); ?>
                                     </option>
-                                <?php
+                            <?php
+                                    }
                                 }
                             ?>    
                         </select>
@@ -159,13 +237,21 @@
 
             <hr style="border: 2px solid #16087B; border-radius: 2px;">
 
-            <button type="submit" class="btn btn-primary" name="btn-update">
-                <span class="spinner-border spinner-border-sm"></span>
-                ACTUALIZAR INFORMACIÓN RECLAMACIONES
-            </button>
-            <button type="reset" class="btn btn-outline-dark" role='link' onclick="history.back();" type='reset'><img src='../../img/atras.png' width=27 height=27> REGRESAR
-            </button>
-        </form>
+            
+            <div class="d-flex justify-content-between mt-3">
+                <div>
+                    <button type="submit" class="btn btn-primary btn-lg" name="btn-update">
+                        <i class="fa-solid fa-save"></i>
+                        ACTUALIZAR INFORMACIÓN
+                    </button>
+                    <button type="reset" class="btn btn-outline-secondary ml-2" role='link' onclick="history.back();">
+                        <img src='../../img/atras.png' width=24 height=24/> REGRESAR
+                    </button>
+                </div>
+            </div>
+                </form>
+            </div>
+        </div>
     </div>
 </body>
 </html>

@@ -1,88 +1,61 @@
 <?php
-    date_default_timezone_set("America/Bogota");
-    session_start();
-    
-    if(!isset($_SESSION['id'])){
-        header("Location: index.php");
+// Prevent PHP notices/warnings from corrupting JSON output
+ini_set('display_errors', 0);
+error_reporting(0);
+session_start();
+header('Content-Type: application/json; charset=utf-8');
+if(!isset($_SESSION['id'])){
+    echo json_encode(['success' => false, 'message' => 'No autorizado']);
+    exit;
+}
+include("../../conexion.php");
+
+date_default_timezone_set("America/Bogota");
+
+if($_SERVER['REQUEST_METHOD'] === 'POST'){
+    // Expected fields
+    $id_rec = isset($_POST['id_rec']) ? $_POST['id_rec'] : '';
+    $fecha_rec = isset($_POST['fecha_rec']) ? $_POST['fecha_rec'] : '';
+    $nom_rec = isset($_POST['nom_rec']) ? strtoupper(trim($_POST['nom_rec'])) : '';
+    $reclamacion_rec = isset($_POST['reclamacion_rec']) ? strtoupper(trim($_POST['reclamacion_rec'])) : '';
+    $rad_rec = isset($_POST['rad_rec']) ? trim($_POST['rad_rec']) : '';
+    $doc_jur = isset($_POST['doc_jur']) ? trim($_POST['doc_jur']) : '';
+    $est_res_rec = isset($_POST['est_res_rec']) ? strtoupper(trim($_POST['est_res_rec'])) : '';
+    $obs_rec = isset($_POST['obs_rec']) ? strtoupper(trim($_POST['obs_rec'])) : '';
+
+    // Minimal server-side validation
+    $missing = [];
+    if(empty($id_rec)) $missing[] = 'id_rec';
+    if(empty($nom_rec)) $missing[] = 'nom_rec';
+    if(empty($reclamacion_rec)) $missing[] = 'reclamacion_rec';
+
+    if(!empty($missing)){
+        echo json_encode(['success' => false, 'message' => 'Faltan campos: ' . implode(', ', $missing)]);
+        exit;
     }
-    
-    $usuario      = $_SESSION['usuario'];
-    $nombre       = $_SESSION['nombre'];
-    $tipo_usuario = $_SESSION['tipo_usuario'];
+
+    // sanitize
+    $id_rec_s = $mysqli->real_escape_string($id_rec);
+    $fecha_rec_s = $mysqli->real_escape_string($fecha_rec);
+    $nom_rec_s = $mysqli->real_escape_string($nom_rec);
+    $reclamacion_rec_s = $mysqli->real_escape_string($reclamacion_rec);
+    $rad_rec_s = $mysqli->real_escape_string($rad_rec);
+    $doc_jur_s = $mysqli->real_escape_string($doc_jur);
+    $est_res_rec_s = $mysqli->real_escape_string($est_res_rec);
+    $obs_rec_s = $mysqli->real_escape_string($obs_rec);
+    $fecha_edit = date('Y-m-d H:i:s');
+    $id_usu = $_SESSION['id'];
+
+    $sql = "UPDATE reclamaciones SET fecha_rec='$fecha_rec_s', nom_rec='$nom_rec_s', reclamacion_rec='$reclamacion_rec_s', rad_rec='$rad_rec_s', doc_jur='$doc_jur_s', est_res_rec='$est_res_rec_s', obs_rec='$obs_rec_s', fecha_edit_rec='$fecha_edit', id_usu='$id_usu' WHERE id_rec='$id_rec_s'";
+
+    if($mysqli->query($sql)){
+        echo json_encode(['success' => true, 'message' => 'Reclamación actualizada correctamente']);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Error al actualizar: ' . $mysqli->error]);
+    }
+
+} else {
+    echo json_encode(['success' => false, 'message' => 'Método no permitido']);
+}
 
 ?>
-
-<!DOCTYPE html>
-<html lang="es">
-<head>
-	<meta charset="utf-8">
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>JURIDICA</title>
-    <link href="../../css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        .responsive {
-            max-width: 100%;
-            height: auto;
-        }
-    </style>
-</head>
-<body>
-
-   	<?php
-        include("../../conexion.php");
-        header("Content-Type: text/html;charset=utf-8");
-	    if(isset($_POST['btn-update']))
-        {
-            $id_rec             =   $_POST['id_rec'];
-            $fecha_rec          =   $_POST['fecha_rec'];
-            $nom_rec            =   mb_strtoupper($_POST['nom_rec']);
-            $reclamacion_rec    =   mb_strtoupper($_POST['reclamacion_rec']);
-            $rad_rec            =   $_POST['rad_rec'];
-            $doc_jur            =   $_POST['doc_jur'];
-            $est_res_rec        =   mb_strtoupper($_POST['est_res_rec']);
-            $estado_rec         =   1;
-            $obs_rec            =   mb_strtoupper($_POST['obs_rec']);
-            $fecha_edit_rec     =   date('Y-m-d h:i:s');
-            $id_usu             =   $_SESSION['id'];
-           
-            $update = "UPDATE reclamaciones SET fecha_rec='".$fecha_rec."', nom_rec='".$nom_rec."', reclamacion_rec='".$reclamacion_rec."', rad_rec='".$rad_rec."', doc_jur='".$doc_jur."', est_res_rec='".$est_res_rec."', estado_rec='".$estado_rec."', obs_rec='".$obs_rec."', fecha_edit_rec='".$fecha_edit_rec."', id_usu='".$id_usu."' WHERE id_rec='".$id_rec."'";
-
-            $up = mysqli_query($mysqli, $update);
-
-            echo "
-                <!DOCTYPE html>
-                    <html lang='es'>
-                        <head>
-                            <meta charset='utf-8' />
-                            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-                            <meta http-equiv='X-UA-Compatible' content='ie=edge'>
-                            <link href='https://fonts.googleapis.com/css?family=Lobster' rel='stylesheet'>
-                            <link href='https://fonts.googleapis.com/css?family=Orbitron' rel='stylesheet'>
-                            <link rel='stylesheet' href='../../css/bootstrap.min.css'>
-                            <link href='../../fontawesome/css/all.css' rel='stylesheet'>
-                            <title>HELP DESK</title>
-                            <style>
-                                .responsive {
-                                    max-width: 100%;
-                                    height: auto;
-                                }
-                            </style>
-                        </head>
-                        <body>
-                            <center>
-                               <img src='../../img/gobersecre.png' width='400' height='188' class='responsive'>
-                            <div class='container'>
-                                <br />
-                                <h3><b><i class='fas fa-users'></i> SE ACTUALIZÓ DE FORMA EXITOSA EL REGISTRO</b></h3><br />
-                                <p align='center'><a href='../../access.php'><img src='../../img/atras.png' width=96 height=96></a></p>
-                            </div>
-                            </center>
-                        </body>
-                    </html>
-        ";
-        }
-    ?>
-
-</body>
-</html>
