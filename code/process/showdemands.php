@@ -202,6 +202,13 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 										value="<?php echo isset($_GET['nom_jur']) ? $_GET['nom_jur'] : ''; ?>">
 								</div>
 								<div class="form-group mx-2">
+									<select name="estado" class="form-control">
+										<option value="">Todos los estados</option>
+										<option value="activa" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'activa') ? 'selected' : ''; ?>>Activas</option>
+										<option value="realizada" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'realizada') ? 'selected' : ''; ?>>Realizadas</option>
+									</select>
+								</div>
+								<div class="form-group mx-2">
 									<button type="submit" class="btn btn-success">
 										<i class="fa-solid fa-search"></i> Buscar
 									</button>
@@ -210,79 +217,106 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 						</div>
 					</div>
 
-					<?php
+			<?php
 
-					date_default_timezone_set("America/Bogota");
-					include("../../conexion.php");
+			date_default_timezone_set("America/Bogota");
+			include("../../conexion.php");
 
-					@$accionante_dem = ($_GET['accionante_dem']);
-					@$rad_dem = ($_GET['rad_dem']);
-					@$nom_jur = ($_GET['nom_jur']);
+		// Obtener documento del usuario actual si es tipo 1 (abogado)
+		$doc_usuario_actual = null;
+		if ($tipo_usuario == 1 || $tipo_usuario == '1') {
+			$id_usuario = $_SESSION['id'];
+			$sql_doc = "SELECT documento FROM usuarios WHERE id = '$id_usuario' LIMIT 1";
+			$res_doc = $mysqli->query($sql_doc);
+			if ($res_doc && $res_doc->num_rows > 0) {
+				$row_doc = $res_doc->fetch_assoc();
+				$doc_usuario_actual = $row_doc['documento'];
+			}
+		}
 
-					// Paginación
-					$resul_x_pagina = 25;
-					$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-					$offset = ($page - 1) * $resul_x_pagina;
+	@$accionante_dem = ($_GET['accionante_dem']);
+	@$rad_dem = ($_GET['rad_dem']);
+	@$nom_jur = ($_GET['nom_jur']);
+	@$estado_filter = isset($_GET['estado']) ? $_GET['estado'] : '';
+	
+	// Paginación
+	$resul_x_pagina = 25;
+	$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+	$offset = ($page - 1) * $resul_x_pagina;
 
-					// Construir query base
-					$where_conditions = [];
-					$params = [];
+	// Construir query base
+	$where_conditions = [];
+	$params = [];
 
-					if (!empty($accionante_dem)) {
-						$where_conditions[] = "accionante_dem LIKE ?";
-						$params[] = "%$accionante_dem%";
-					}
-					if (!empty($rad_dem)) {
-						$where_conditions[] = "rad_dem LIKE ?";
-						$params[] = "%$rad_dem%";
-					}
-					if (!empty($nom_jur)) {
-						$where_conditions[] = "nom_jur LIKE ?";
-						$params[] = "%$nom_jur%";
-					}
+	// Si es tipo_usuario = 1 (abogado), solo ver demandas asignadas a él (filtrar por doc_jur)
+	if (($tipo_usuario == 1 || $tipo_usuario == '1') && !empty($doc_usuario_actual)) {
+		$where_conditions[] = "demandas.doc_jur = ?";
+		$params[] = $doc_usuario_actual;
+	}
+	
+	// Filtro por estado realizada
+	if ($estado_filter === 'realizada') {
+		$where_conditions[] = "demandas.realizada = 1";
+	} elseif ($estado_filter === 'activa') {
+		$where_conditions[] = "(demandas.realizada = 0 OR demandas.realizada IS NULL)";
+	}
+	
+	if (!empty($accionante_dem)) {
+				$where_conditions[] = "accionante_dem LIKE ?";
+				$params[] = "%$accionante_dem%";
+			}
+			if (!empty($rad_dem)) {
+				$where_conditions[] = "rad_dem LIKE ?";
+				$params[] = "%$rad_dem%";
+			}
+			if (!empty($nom_jur)) {
+				$where_conditions[] = "nom_jur LIKE ?";
+				$params[] = "%$nom_jur%";
+			}
 
-					$where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
+			$where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";				// Contar total de registros
+				// Usamos la tabla usuarios (documento) para enlazar el abogado asignado
+				$count_query = "SELECT COUNT(*) as total FROM demandas LEFT JOIN usuarios ON demandas.doc_jur=usuarios.documento $where_clause";
+				if (!empty($params)) {
+					$stmt = $mysqli->prepare($count_query);
+					// Todos los parámetros son strings (documento es VARCHAR)
+					$bind_types = str_repeat('s', count($params));
+					$stmt->bind_param($bind_types, ...$params);
+					$stmt->execute();
+					$count_result = $stmt->get_result();
+				} else {
+					$count_result = $mysqli->query($count_query);
+				}
+				$total_records = $count_result->fetch_assoc()['total'];
+				$total_pages = ceil($total_records / $resul_x_pagina);
 
-					// Contar total de registros
-					// Usamos la tabla usuarios (documento) para enlazar el abogado asignado
-					$count_query = "SELECT COUNT(*) as total FROM demandas LEFT JOIN usuarios ON demandas.doc_jur=usuarios.documento $where_clause";
-					if (!empty($params)) {
-						$stmt = $mysqli->prepare($count_query);
-						if (!empty($params)) $stmt->bind_param(str_repeat('s', count($params)), ...$params);
-						$stmt->execute();
-						$count_result = $stmt->get_result();
-					} else {
-						$count_result = $mysqli->query($count_query);
-					}
-					$total_records = $count_result->fetch_assoc()['total'];
-					$total_pages = ceil($total_records / $resul_x_pagina);
-
-					// Query principal con LIMIT
-					// Seleccionamos también el nombre del abogado desde usuarios (si existe)
-					$main_query = "SELECT demandas.*, usuarios.nombre as nom_jur FROM demandas LEFT JOIN usuarios ON demandas.doc_jur=usuarios.documento $where_clause ORDER BY fecha_dem DESC LIMIT $resul_x_pagina OFFSET $offset";
-					if (!empty($params)) {
-						$stmt = $mysqli->prepare($main_query);
-						if (!empty($params)) $stmt->bind_param(str_repeat('s', count($params)), ...$params);
-						$stmt->execute();
-						$result = $stmt->get_result();
-					} else {
-						$result = $mysqli->query($main_query);
-					}
-
-					if ($total_records > 0) {
+				// Query principal con LIMIT
+				// Seleccionamos también el nombre del abogado desde usuarios (si existe)
+				$main_query = "SELECT demandas.*, usuarios.nombre as nom_jur FROM demandas LEFT JOIN usuarios ON demandas.doc_jur=usuarios.documento $where_clause ORDER BY fecha_dem DESC LIMIT $resul_x_pagina OFFSET $offset";
+				if (!empty($params)) {
+					$stmt = $mysqli->prepare($main_query);
+					$stmt->bind_param($bind_types, ...$params);
+					$stmt->execute();
+					$result = $stmt->get_result();
+				} else {
+					$result = $mysqli->query($main_query);
+				}					if ($total_records > 0) {
 					?>
-						<div class="table-container">
-							<div class="d-flex justify-content-between align-items-center mb-3">
-								<h5 class="text-primary">
-									<i class="fa-solid fa-list"></i> Resultados encontrados: <?php echo $total_records; ?>
-									(Página <?php echo $page; ?> de <?php echo $total_pages; ?>)
-								</h5>
-								<button class="btn btn-success" data-toggle="modal" data-target="#addDemandModal">
+					<div class="table-container">
+						<div class="d-flex justify-content-between align-items-center mb-3">
+							<h5 class="text-primary">
+								<i class="fa-solid fa-list"></i> Resultados encontrados: <?php echo $total_records; ?>
+								(Página <?php echo $page; ?> de <?php echo $total_pages; ?>)
+							</h5>
+						<div>
+							<a href="export_demands_excel.php?<?php echo http_build_query($_GET); ?>" class="btn btn-success">
+								<i class="fa-solid fa-file-excel"></i> Exportar a Excel
+							</a>
+								<button class="btn btn-success ml-2" data-toggle="modal" data-target="#addDemandModal">
 									<i class="fa-solid fa-plus"></i> Agregar Demanda
 								</button>
 							</div>
-
-							<div class="table-responsive">
+						</div>							<div class="table-responsive">
 								<table class="table table-striped table-hover">
 									<thead class="thead-dark">
 										<tr>
@@ -292,6 +326,7 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 											<th><i class="fa-solid fa-file-contract"></i> Radicado</th>
 											<th><i class="fa-solid fa-building-columns"></i> Despacho</th>
 											<th><i class="fa-solid fa-user-tie"></i> Abogado</th>
+											<th><i class="fa-solid fa-hourglass-half"></i> Respuesta demanda (días)</th>
 											<th><i class="fa-solid fa-info-circle"></i> Estado</th>
 											<th><i class="fa-solid fa-gear"></i> Acciones</th>
 										</tr>
@@ -304,13 +339,46 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 												'<span class="badge-role badge-active">Activo</span>' :
 												'<span class="badge-role badge-inactive">Inactivo</span>';
 										?>
-											<tr>
+											<?php
+											// Calcular días transcurridos desde auto_admisorio hasta hoy (si existe) y establecer color
+											$days_passed = null;
+											$bg_style = '';
+											if (!empty($row['auto_admisorio']) && $row['auto_admisorio'] !== '0000-00-00' && $row['realizada'] != 1) {
+												$today = strtotime(date('Y-m-d'));
+												$target = strtotime($row['auto_admisorio']);
+												// días pasados = hoy - auto_admisorio
+												$diff_days = intval(round(($today - $target) / 86400));
+												$days_passed = $diff_days;
+												if ($days_passed < 0) {
+													// Si la fecha está en el futuro, no contamos días
+													$days_passed = 0;
+												}
+
+												// Colores según nuevos rangos solicitados:
+												// Verde: 1-11 días
+												// Naranja: 12-19 días
+												// Rojo: 20-30 días
+												if ($days_passed >= 1 && $days_passed <= 11) {
+													$bg_style = 'background:#c7f0d6'; // verde suave
+												} elseif ($days_passed >= 12 && $days_passed <= 19) {
+													$bg_style = 'background:#ffe6b3'; // naranja suave
+												} elseif ($days_passed >= 20 && $days_passed <= 30) {
+													$bg_style = 'background:#f8d7da'; // rojo suave
+												}
+											}
+											// Si ya está marcada como realizada, usar gris
+											if (isset($row['realizada']) && $row['realizada'] == 1) {
+												$bg_style = 'background:#e9ecef';
+											}
+											?>
+											<tr style="<?php echo $bg_style; ?>">
 												<td><?php echo $contador; ?></td>
 												<td><?php echo date('d/m/Y', strtotime($row['fecha_dem'])); ?></td>
 												<td><strong><?php echo htmlspecialchars($row['accionante_dem']); ?></strong></td>
 												<td><?php echo htmlspecialchars($row['rad_dem']); ?></td>
 												<td><?php echo htmlspecialchars($row['desp_judi_dem']); ?></td>
 												<td><?php echo htmlspecialchars($row['nom_jur']); ?></td>
+												<td><?php echo is_null($days_passed) ? '—' : intval($days_passed); ?></td>
 												<td><?php echo htmlspecialchars(substr($row['est_act_proc_dem'], 0, 50)) . (strlen($row['est_act_proc_dem']) > 50 ? '...' : ''); ?></td>
 												<td>
 													<div class="action-group">
@@ -320,6 +388,13 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 														<button class="btn-action btn-delete-custom" data-id="<?php echo $row['id_dem']; ?>" title="Eliminar">
 															<i class="fa-solid fa-trash"></i>
 														</button>
+														<?php if (!isset($row['realizada']) || $row['realizada'] != 1): ?>
+															<button class="btn-action btn-success btn-mark-done" data-id="<?php echo $row['id_dem']; ?>" title="Marcar realizada">
+																<i class="fa-solid fa-check"></i>
+															</button>
+														<?php else: ?>
+															<span class="badge badge-secondary">Realizada</span>
+														<?php endif; ?>
 													</div>
 												</td>
 											</tr>
@@ -433,6 +508,34 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 					}
 				});
 			});
+
+					// Marcar como realizada
+					$(document).on('click', '.btn-mark-done', function(e){
+						e.preventDefault();
+						var id = $(this).data('id');
+						Swal.fire({
+							title: '¿Marcar como realizada?',
+							text: 'Confirmar que la demanda está realizada.',
+							icon: 'question',
+							showCancelButton: true,
+							confirmButtonText: 'Sí, marcar',
+							cancelButtonText: 'Cancelar'
+						}).then(function(result){
+							if(result.isConfirmed){
+								$.post('markdone.php', { id_dem: id }, function(resp){
+									if(resp && resp.success){
+										Swal.fire('Actualizado', resp.message || 'Marcado como realizado', 'success').then(function(){
+											location.reload();
+										});
+									} else {
+										Swal.fire('Error', (resp && resp.message) ? resp.message : 'Error al marcar', 'error');
+									}
+								}, 'json').fail(function(){
+									Swal.fire('Error', 'Error en la petición', 'error');
+								});
+							}
+						});
+					});
 		});
 	</script>
 
@@ -520,6 +623,15 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 									<label for="add_interno_dem">Interno</label>
 									<input type="text" class="form-control" id="add_interno_dem" name="interno_dem"
 										style="text-transform:uppercase;">
+								</div>
+							</div>
+						</div>
+
+						<div class="row">
+							<div class="col-md-4">
+								<div class="form-group">
+									<label for="add_auto_admisorio">Auto admisorio (fecha)</label>
+									<input type="date" class="form-control" id="add_auto_admisorio" name="auto_admisorio">
 								</div>
 							</div>
 						</div>

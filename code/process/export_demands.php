@@ -1,0 +1,164 @@
+<?php
+session_start();
+
+if (!isset($_SESSION['id'])) {
+    header("Location: ../../index.php");
+    exit;
+}
+
+include("../../conexion.php");
+
+$tipo_usuario = $_SESSION['tipo_usuario'];
+$id_usuario = $_SESSION['id'];
+
+// Obtener documento del usuario si es abogado
+$doc_usuario_actual = null;
+if ($tipo_usuario == 1 || $tipo_usuario == '1') {
+    $sql_doc = "SELECT documento FROM usuarios WHERE id = '$id_usuario' LIMIT 1";
+    $res_doc = $mysqli->query($sql_doc);
+    if ($res_doc && $res_doc->num_rows > 0) {
+        $row_doc = $res_doc->fetch_assoc();
+        $doc_usuario_actual = $row_doc['documento'];
+    }
+}
+
+// Obtener parámetros de filtro
+$estado_filter = isset($_GET['estado']) ? $_GET['estado'] : '';
+$accionante = isset($_GET['accionante_dem']) ? $_GET['accionante_dem'] : '';
+$radicado = isset($_GET['rad_dem']) ? $_GET['rad_dem'] : '';
+$abogado = isset($_GET['nom_jur']) ? $_GET['nom_jur'] : '';
+
+// Construir WHERE
+$where_conditions = [];
+$params = [];
+$types = '';
+
+// Filtro por tipo de usuario
+if (($tipo_usuario == 1 || $tipo_usuario == '1') && !empty($doc_usuario_actual)) {
+    $where_conditions[] = "demandas.doc_jur = ?";
+    $params[] = $doc_usuario_actual;
+    $types .= 's';
+}
+
+// Filtro por estado realizada
+if ($estado_filter === 'realizada') {
+    $where_conditions[] = "demandas.realizada = 1";
+} elseif ($estado_filter === 'activa') {
+    $where_conditions[] = "(demandas.realizada = 0 OR demandas.realizada IS NULL)";
+}
+
+if (!empty($accionante)) {
+    $where_conditions[] = "accionante_dem LIKE ?";
+    $params[] = "%$accionante%";
+    $types .= 's';
+}
+if (!empty($radicado)) {
+    $where_conditions[] = "rad_dem LIKE ?";
+    $params[] = "%$radicado%";
+    $types .= 's';
+}
+if (!empty($abogado)) {
+    $where_conditions[] = "nom_jur LIKE ?";
+    $params[] = "%$abogado%";
+    $types .= 's';
+}
+
+$where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
+
+// Query principal
+$sql = "SELECT demandas.*, usuarios.nombre as nom_jur FROM demandas 
+        LEFT JOIN usuarios ON demandas.doc_jur=usuarios.documento 
+        $where_clause 
+        ORDER BY fecha_dem DESC";
+
+if (!empty($params)) {
+    $stmt = $mysqli->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $result = $mysqli->query($sql);
+}
+
+// Configurar headers para descarga Excel
+$filename = "Demandas_" . date('Y-m-d_His') . ".xls";
+header("Content-Type: application/vnd.ms-excel; charset=utf-8");
+header("Content-Disposition: attachment; filename=$filename");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+// Agregar BOM para UTF-8
+echo "\xEF\xBB\xBF";
+
+// Crear tabla HTML (Excel puede leerla)
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        table { border-collapse: collapse; width: 100%; }
+        th { background-color: #1e3c72; color: white; font-weight: bold; padding: 10px; border: 1px solid #000; }
+        td { padding: 8px; border: 1px solid #000; }
+        .realizada { background-color: #d4edda; }
+        .activa { background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Accionante/Demandante</th>
+                <th>Documento</th>
+                <th>Radicado</th>
+                <th>Despacho Judicial</th>
+                <th>Abogado Asignado</th>
+                <th>Auto Admisorio</th>
+                <th>Días Transcurridos</th>
+                <th>Estado Actual</th>
+                <th>Interno</th>
+                <th>Observaciones</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            $contador = 1;
+            while ($row = $result->fetch_assoc()) {
+                // Calcular días
+                $days_passed = null;
+                if (!empty($row['auto_admisorio']) && $row['auto_admisorio'] !== '0000-00-00') {
+                    $today = strtotime(date('Y-m-d'));
+                    $target = strtotime($row['auto_admisorio']);
+                    $diff_days = intval(round(($today - $target) / 86400));
+                    $days_passed = max(0, $diff_days);
+                }
+                
+                $estado_texto = (isset($row['realizada']) && $row['realizada'] == 1) ? 'REALIZADA' : 'ACTIVA';
+                $class = (isset($row['realizada']) && $row['realizada'] == 1) ? 'realizada' : 'activa';
+            ?>
+                <tr class="<?php echo $class; ?>">
+                    <td><?php echo $contador; ?></td>
+                    <td><?php echo date('d/m/Y', strtotime($row['fecha_dem'])); ?></td>
+                    <td><?php echo htmlspecialchars($row['accionante_dem']); ?></td>
+                    <td><?php echo htmlspecialchars($row['doc_dem']); ?></td>
+                    <td><?php echo htmlspecialchars($row['rad_dem']); ?></td>
+                    <td><?php echo htmlspecialchars($row['desp_judi_dem']); ?></td>
+                    <td><?php echo htmlspecialchars($row['nom_jur']); ?></td>
+                    <td><?php echo !empty($row['auto_admisorio']) && $row['auto_admisorio'] !== '0000-00-00' ? date('d/m/Y', strtotime($row['auto_admisorio'])) : '—'; ?></td>
+                    <td><?php echo is_null($days_passed) ? '—' : $days_passed; ?></td>
+                    <td><?php echo htmlspecialchars($row['est_act_proc_dem']); ?></td>
+                    <td><?php echo htmlspecialchars($row['interno_dem']); ?></td>
+                    <td><?php echo htmlspecialchars($row['obs_dem']); ?></td>
+                    <td><strong><?php echo $estado_texto; ?></strong></td>
+                </tr>
+            <?php
+                $contador++;
+            }
+            ?>
+        </tbody>
+    </table>
+</body>
+</html>

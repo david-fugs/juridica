@@ -199,7 +199,14 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 										value="<?php echo isset($_GET['nom_jur']) ? $_GET['nom_jur'] : ''; ?>">
 								</div>
 								<div class="form-group mx-2">
-									<button type="submit" class="btn btn-success">
+                    <select name="estado" class="form-control">
+                        <option value="">Todos los estados</option>
+                        <option value="activa" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'activa') ? 'selected' : ''; ?>>Activas</option>
+                        <option value="realizada" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'realizada') ? 'selected' : ''; ?>>Realizadas</option>
+                    </select>
+                </div>
+                <div class="form-group mx-2">
+                    <button type="submit" class="btn btn-success">
 										<i class="fa-solid fa-search"></i> Buscar
 									</button>
 								</div>
@@ -209,75 +216,102 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 
 					<?php
 
-					date_default_timezone_set("America/Bogota");
-					include("../../conexion.php");
+				date_default_timezone_set("America/Bogota");
+				include("../../conexion.php");
 
-					@$nom_rec = ($_GET['nom_rec']);
-					@$rad_rec = ($_GET['rad_rec']);
-					@$nom_jur = ($_GET['nom_jur']);
+				// Obtener documento del usuario actual si es tipo 1 (abogado)
+				$doc_usuario_actual = null;
+				if ($tipo_usuario == 1) {
+					$id_usuario = $_SESSION['id'];
+					$sql_doc = "SELECT documento FROM usuarios WHERE id = '$id_usuario' LIMIT 1";
+					$res_doc = $mysqli->query($sql_doc);
+				if ($res_doc && $res_doc->num_rows > 0) {
+					$row_doc = $res_doc->fetch_assoc();
+					$doc_usuario_actual = $row_doc['documento'];
+				}
+			}
 
-					// Paginación
+			@$nom_rec = ($_GET['nom_rec']);
+			@$rad_rec = ($_GET['rad_rec']);
+			@$nom_jur = ($_GET['nom_jur']);
+			@$estado_filter = isset($_GET['estado']) ? $_GET['estado'] : '';
 					$resul_x_pagina = 25;
 					$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 					$offset = ($page - 1) * $resul_x_pagina;
 
-					// Construir query base - cambiar a tabla usuarios
-					$where_conditions = [];
-					$params = [];
+				// Construir query base - cambiar a tabla usuarios
+				$where_conditions = [];
+				$params = [];
 
-					if (!empty($nom_rec)) {
-						$where_conditions[] = "nom_rec LIKE ?";
-						$params[] = "%$nom_rec%";
-					}
-					if (!empty($rad_rec)) {
-						$where_conditions[] = "rad_rec LIKE ?";
-						$params[] = "%$rad_rec%";
-					}
-					if (!empty($nom_jur)) {
-						$where_conditions[] = "nom_jur LIKE ?";
-						$params[] = "%$nom_jur%";
-					}
+		// Si es tipo_usuario = 1 (abogado), solo ver reclamaciones asignadas a él (filtrar por doc_jur)
+		if ($tipo_usuario == 1 && !empty($doc_usuario_actual)) {
+			$where_conditions[] = "reclamaciones.doc_jur = ?";
+			$params[] = $doc_usuario_actual;
+		}
+		
+		// Filtro por estado realizada
+		if ($estado_filter === 'realizada') {
+			$where_conditions[] = "reclamaciones.realizada = 1";
+		} elseif ($estado_filter === 'activa') {
+			$where_conditions[] = "(reclamaciones.realizada = 0 OR reclamaciones.realizada IS NULL)";
+		}
+		
+		if (!empty($nom_rec)) {
+					$where_conditions[] = "nom_rec LIKE ?";
+					$params[] = "%$nom_rec%";
+				}
+				if (!empty($rad_rec)) {
+					$where_conditions[] = "rad_rec LIKE ?";
+					$params[] = "%$rad_rec%";
+				}
+				if (!empty($nom_jur)) {
+					$where_conditions[] = "nom_jur LIKE ?";
+					$params[] = "%$nom_jur%";
+				}
 
-					$where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
+				$where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
 
-					// Contar total de registros - usar tabla usuarios
-					$count_query = "SELECT COUNT(*) as total FROM reclamaciones LEFT JOIN usuarios ON reclamaciones.doc_jur=usuarios.documento $where_clause";
-					if (!empty($params)) {
-						$stmt = $mysqli->prepare($count_query);
-						if (!empty($params)) $stmt->bind_param(str_repeat('s', count($params)), ...$params);
-						$stmt->execute();
-						$count_result = $stmt->get_result();
-					} else {
-						$count_result = $mysqli->query($count_query);
-					}
-					$total_records = $count_result->fetch_assoc()['total'];
-					$total_pages = ceil($total_records / $resul_x_pagina);
+			// Contar total de registros - usar tabla usuarios
+			$count_query = "SELECT COUNT(*) as total FROM reclamaciones LEFT JOIN usuarios ON reclamaciones.doc_jur=usuarios.documento $where_clause";
+			if (!empty($params)) {
+				$stmt = $mysqli->prepare($count_query);
+				// Todos los parámetros son strings (documento es VARCHAR)
+				$bind_types = str_repeat('s', count($params));
+				$stmt->bind_param($bind_types, ...$params);
+					$stmt->execute();
+					$count_result = $stmt->get_result();
+				} else {
+					$count_result = $mysqli->query($count_query);
+				}
+				$total_records = $count_result->fetch_assoc()['total'];
+				$total_pages = ceil($total_records / $resul_x_pagina);
 
-					// Query principal con LIMIT - cambiar a usuarios.nombre as nom_jur
-					$main_query = "SELECT reclamaciones.*, usuarios.nombre as nom_jur FROM reclamaciones LEFT JOIN usuarios ON reclamaciones.doc_jur=usuarios.documento $where_clause ORDER BY fecha_rec DESC LIMIT $resul_x_pagina OFFSET $offset";
-					if (!empty($params)) {
-						$stmt = $mysqli->prepare($main_query);
-						if (!empty($params)) $stmt->bind_param(str_repeat('s', count($params)), ...$params);
-						$stmt->execute();
-						$result = $stmt->get_result();
-					} else {
-						$result = $mysqli->query($main_query);
-					}
-
-					if ($total_records > 0) {
+				// Query principal con LIMIT - cambiar a usuarios.nombre as nom_jur
+				$main_query = "SELECT reclamaciones.*, usuarios.nombre as nom_jur FROM reclamaciones LEFT JOIN usuarios ON reclamaciones.doc_jur=usuarios.documento $where_clause ORDER BY fecha_rec DESC LIMIT $resul_x_pagina OFFSET $offset";
+				if (!empty($params)) {
+					$stmt = $mysqli->prepare($main_query);
+					$stmt->bind_param($bind_types, ...$params);
+					$stmt->execute();
+					$result = $stmt->get_result();
+				} else {
+					$result = $mysqli->query($main_query);
+				}					if ($total_records > 0) {
 					?>
 						<div class="table-container">
-							<div class="d-flex justify-content-between align-items-center mb-3">
-								<h5 class="text-primary">
-									<i class="fa-solid fa-list"></i> Resultados encontrados: <?php echo $total_records; ?>
-									(Página <?php echo $page; ?> de <?php echo $total_pages; ?>)
-								</h5>
-								<button class="btn btn-success" data-toggle="modal" data-target="#addClaimModal">
-									<i class="fa-solid fa-plus"></i> Agregar Reclamación
-								</button>
-							</div>
-
-							<div class="table-responsive">
+					<div class="d-flex justify-content-between align-items-center mb-3">
+						<h5 class="text-primary">
+							<i class="fa-solid fa-list"></i> Resultados encontrados: <?php echo $total_records; ?>
+							(Página <?php echo $page; ?> de <?php echo $total_pages; ?>)
+						</h5>
+					<div>
+						<a href="export_claims_excel.php?<?php echo http_build_query($_GET); ?>" class="btn btn-success">
+							<i class="fa-solid fa-file-excel"></i> Exportar a Excel
+						</a>
+						<button class="btn btn-success ml-2" data-toggle="modal" data-target="#addClaimModal">
+							<i class="fa-solid fa-plus"></i> Agregar Reclamación
+						</button>
+					</div>
+					</div>							<div class="table-responsive">
 								<table class="table table-striped table-hover">
 									<thead class="thead-dark">
 										<tr>
@@ -364,7 +398,11 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 						<div class="alert alert-warning text-center mt-4">
 							<h4><i class="fa-solid fa-exclamation-triangle"></i> No se encontraron reclamaciones</h4>
 							<p>No hay reclamaciones que coincidan con los criterios de búsqueda.</p>
-							<button class="btn btn-success" data-toggle="modal" data-target="#addClaimModal">
+							<div>
+                    <a href="export_claims.php?<?php echo http_build_query($_GET); ?>" class="btn btn-success">
+                        <i class="fa-solid fa-file-excel"></i> Exportar a Excel
+                    </a>
+                    <button class="btn btn-success ml-2" data-toggle="modal" data-target="#addClaimModal">
 								<i class="fa-solid fa-plus"></i> Crear Primera Reclamación
 							</button>
 						</div>

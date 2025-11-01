@@ -199,7 +199,7 @@
                 <div class="row">
                     <div class="col-12 col-sm-4">
                         <label for="doc_jur">ABOGADO ASIGNADO:</label>
-                        <select name='doc_jur' class='form-control' id="selectJur" required>
+                        <select name='doc_jur' class='form-control' id="selectJur" required <?php if($tipo_usuario == 1) echo 'disabled'; ?>>
                             <option value=''></option>
                             <?php
                                 header('Content-Type: text/html;charset=utf-8');
@@ -218,10 +218,22 @@
                                 }
                             ?>    
                         </select>
+                        <?php if($tipo_usuario == 1): ?>
+                            <!-- Campo oculto para enviar el valor cuando está disabled -->
+                            <input type='hidden' name='doc_jur' value='<?php echo htmlspecialchars($row['doc_jur']); ?>' />
+                        <?php endif; ?>
                     </div>
                     <div class="col-12 col-sm-2">
                         <label for="interno_dem">INTERNO:</label>
                         <input type='text' name='interno_dem' id="interno_dem" class='form-control' value='<?php echo utf8_encode($row['interno_dem']); ?>'/>
+                    </div>
+                    <div class="col-12 col-sm-3">
+                        <label for="auto_admisorio">AUTO ADMISORIO (fecha)</label>
+                        <input type='date' name='auto_admisorio' id="auto_admisorio" class='form-control' value='<?php echo isset($row['auto_admisorio']) ? $row['auto_admisorio'] : ''; ?>'/>
+                    </div>
+                    <div class="col-12 col-sm-1 d-flex align-items-center">
+                        <label for="realizada" class="mb-0">Realizada</label>
+                        <input type='checkbox' name='realizada' id="realizada" class='form-control ml-2' value='1' <?php if(isset($row['realizada']) && $row['realizada']==1) echo 'checked'; ?> />
                     </div>
                 </div>
             </div>

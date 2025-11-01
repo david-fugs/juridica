@@ -225,15 +225,18 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 				<div class="col-12">
 					<div align="center">
 						<div class="d-flex justify-content-between align-items-center mb-3">
-							<div>
-								<h1 style="color: #412fd1; text-shadow: #FFFFFF 0.1em 0.1em 0.2em; display:inline-block; margin-right:12px;">
-									<b><i class="fa-solid fa-building-shield"></i> CONSULTAR TUTELAS</b>
-								</h1>
-								<a href="../../access.php" class="btn btn-outline-secondary" style="margin-right:8px;"><i class="fa-solid fa-arrow-left"></i> Regresar</a>
-								<button id="btnAddTut" class="btn btn-success btn-create-large" data-toggle="modal" data-target="#modalAddTut">
-									<i class="fa-solid fa-plus fa-lg"></i> <strong>Crear Tutela</strong>
-								</button>
-							</div>
+						<div>
+							<h1 style="color: #412fd1; text-shadow: #FFFFFF 0.1em 0.1em 0.2em; display:inline-block; margin-right:12px;">
+								<b><i class="fa-solid fa-building-shield"></i> CONSULTAR TUTELAS</b>
+							</h1>
+							<a href="../../access.php" class="btn btn-outline-secondary" style="margin-right:8px;"><i class="fa-solid fa-arrow-left"></i> Regresar</a>
+							<a href="export_tutelas_excel.php?<?php echo http_build_query($_GET); ?>" class="btn btn-success" style="margin-right:8px;">
+								<i class="fa-solid fa-file-excel"></i> Exportar a Excel
+							</a>
+							<button id="btnAddTut" class="btn btn-success btn-create-large" data-toggle="modal" data-target="#modalAddTut">
+								<i class="fa-solid fa-plus fa-lg"></i> <strong>Crear Tutela</strong>
+							</button>
+						</div>
 						</div>
 					</div>
 
@@ -269,6 +272,25 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 date_default_timezone_set("America/Bogota");
 include("../../conexion.php");
 
+// Obtener documento del usuario actual si es tipo 1 (abogado)
+$doc_usuario_actual = null;
+if ($tipo_usuario == 1) {
+	$id_usuario = $_SESSION['id'];
+	$sql_doc = "SELECT documento FROM usuarios WHERE id = '$id_usuario' LIMIT 1";
+	$res_doc = $mysqli->query($sql_doc);
+	if ($res_doc && $res_doc->num_rows > 0) {
+		$row_doc = $res_doc->fetch_assoc();
+		$doc_usuario_actual = $row_doc['documento'];
+	}
+    
+    // Filtro por estado realizada
+    if ($estado_filter === 'realizada') {
+        $where_conditions[] = "tutelas.realizada = 1";
+    } elseif ($estado_filter === 'activa') {
+        $where_conditions[] = "(tutelas.realizada = 0 OR tutelas.realizada IS NULL)";
+    }
+}
+
 // Obtener parámetros de búsqueda
 $nom_tut = isset($_GET['nom_tut']) ? $_GET['nom_tut'] : '';
 $tipo_tut = isset($_GET['tipo_tut']) ? $_GET['tipo_tut'] : '';
@@ -276,6 +298,12 @@ $nom_jur = isset($_GET['nom_jur']) ? $_GET['nom_jur'] : '';
 
 // Construir consulta con filtros
 $whereConditions = [];
+
+// Si es tipo_usuario = 1 (abogado), solo ver tutelas asignadas a él (filtrar por doc_jur)
+if ($tipo_usuario == 1 && !empty($doc_usuario_actual)) {
+    $whereConditions[] = "t.doc_jur = '" . $mysqli->real_escape_string($doc_usuario_actual) . "'";
+}
+
 if (!empty($nom_tut)) {
     $whereConditions[] = "t.nom_tut LIKE '%" . $mysqli->real_escape_string($nom_tut) . "%'";
 }

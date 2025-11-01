@@ -18,6 +18,7 @@
     $doc_jur = isset($_POST['doc_jur']) ? $mysqli->real_escape_string($_POST['doc_jur']) : '';
     $interno_dem = isset($_POST['interno_dem']) ? $mysqli->real_escape_string(strtoupper(trim($_POST['interno_dem']))) : '';
     $obs_dem = isset($_POST['obs_dem']) ? $mysqli->real_escape_string(strtoupper(trim($_POST['obs_dem']))) : '';
+    $auto_admisorio = isset($_POST['auto_admisorio']) && !empty($_POST['auto_admisorio']) ? $mysqli->real_escape_string($_POST['auto_admisorio']) : NULL;
     
     $id_usu = $_SESSION['id'];
     $fecha_alta_dem = date('Y-m-d H:i:s');
@@ -29,9 +30,10 @@
         $fecha_dem = date('Y-m-d');
     }
 
-    // Insertar demanda
-    $sql = "INSERT INTO demandas (fecha_dem, accionante_dem, doc_dem, rad_dem, desp_judi_dem, est_act_proc_dem, doc_jur, interno_dem, obs_dem, estado_dem, fecha_alta_dem, fecha_edit_dem, id_usu) 
-            VALUES ('$fecha_dem', '$accionante_dem', '$doc_dem', '$rad_dem', '$desp_judi_dem', '$est_act_proc_dem', '$doc_jur', '$interno_dem', '$obs_dem', '$estado_dem', '$fecha_alta_dem', '$fecha_alta_dem', '$id_usu')";
+    // Insertar demanda (incluye auto_admisorio y realizada por defecto 0)
+    $auto_val = is_null($auto_admisorio) ? 'NULL' : "'".$auto_admisorio."'";
+    $sql = "INSERT INTO demandas (fecha_dem, accionante_dem, doc_dem, rad_dem, desp_judi_dem, est_act_proc_dem, doc_jur, interno_dem, obs_dem, estado_dem, fecha_alta_dem, fecha_edit_dem, id_usu, auto_admisorio, realizada) 
+        VALUES ('$fecha_dem', '$accionante_dem', '$doc_dem', '$rad_dem', '$desp_judi_dem', '$est_act_proc_dem', '$doc_jur', '$interno_dem', '$obs_dem', '$estado_dem', '$fecha_alta_dem', '$fecha_alta_dem', '$id_usu', $auto_val, 0)";
     
     if($mysqli->query($sql)){
         echo json_encode(['success' => true, 'message' => 'Demanda creada exitosamente']);
