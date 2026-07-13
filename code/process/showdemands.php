@@ -21,8 +21,8 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 	<title>JURIDICA - Consultar Demandas</title>
 	<link rel="stylesheet" href="css/styles.css">
 	<link rel="stylesheet" href="../../css/bootstrap.min.css">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm">
-	<script src="https://kit.fontawesome.com/fed2435e21.js" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
 	<style>
 		.responsive {
@@ -160,9 +160,67 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 
 			/* Slightly wider overall container for tables to fit more columns */
 			.table-container {
-				max-width: 1200px;
+				max-width: 1300px;
 				margin-left: auto;
 				margin-right: auto;
+			}
+
+			/* Estilos mejorados para la tabla (consistentes con Conciliaciones) */
+			.table {
+				background: white;
+				border-radius: 8px;
+				overflow: hidden;
+				box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+			}
+
+			.table thead th {
+				background: linear-gradient(135deg, #2c3e50, #34495e);
+				color: white;
+				font-weight: 600;
+				border: none;
+				padding: 15px 12px;
+				text-align: center;
+			}
+
+			.table tbody tr {
+				transition: all 0.2s ease;
+			}
+
+			.table tbody tr:hover {
+				background: #f8f9fa;
+				transform: translateY(-1px);
+				box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+			}
+
+			.table td {
+				padding: 12px;
+				vertical-align: middle;
+				border-top: 1px solid #ecf0f1;
+			}
+
+			.table tbody tr:first-child td {
+				border-top: none;
+			}
+
+			/* Barra de scroll horizontal superior, sincronizada con la tabla */
+			.table-scroll-top {
+				overflow-x: auto;
+				overflow-y: hidden;
+				height: 18px;
+				margin-bottom: 6px;
+			}
+
+			.table-scroll-top-inner {
+				height: 1px;
+			}
+
+			#demandsTableResponsive {
+				cursor: grab;
+			}
+
+			#demandsTableResponsive.dragging {
+				cursor: grabbing;
+				user-select: none;
 			}
 	</style>
 </head>
@@ -206,6 +264,13 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 										<option value="">Todos los estados</option>
 										<option value="activa" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'activa') ? 'selected' : ''; ?>>Activas</option>
 										<option value="realizada" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'realizada') ? 'selected' : ''; ?>>Realizadas</option>
+									</select>
+								</div>
+								<div class="form-group mx-2">
+									<select name="asignacion" class="form-control">
+										<option value="">Todos (con/sin abogado)</option>
+										<option value="sin" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'sin') ? 'selected' : ''; ?>>Sin abogado asignado</option>
+										<option value="con" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'con') ? 'selected' : ''; ?>>Con abogado asignado</option>
 									</select>
 								</div>
 								<div class="form-group mx-2">
@@ -260,7 +325,15 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 	} elseif ($estado_filter === 'activa') {
 		$where_conditions[] = "(demandas.realizada = 0 OR demandas.realizada IS NULL)";
 	}
-	
+
+	// Filtro por asignación de abogado
+	@$asignacion_filter = isset($_GET['asignacion']) ? $_GET['asignacion'] : '';
+	if ($asignacion_filter === 'sin') {
+		$where_conditions[] = "demandas.doc_jur IS NULL";
+	} elseif ($asignacion_filter === 'con') {
+		$where_conditions[] = "demandas.doc_jur IS NOT NULL";
+	}
+
 	if (!empty($accionante_dem)) {
 				$where_conditions[] = "accionante_dem LIKE ?";
 				$params[] = "%$accionante_dem%";
@@ -316,8 +389,10 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 									<i class="fa-solid fa-plus"></i> Agregar Demanda
 								</button>
 							</div>
-						</div>							<div class="table-responsive">
-								<table class="table table-striped table-hover">
+						</div>
+						<div class="table-scroll-top" id="demandsTableScrollTop"><div class="table-scroll-top-inner" id="demandsTableScrollTopInner"></div></div>
+						<div class="table-responsive" id="demandsTableResponsive">
+								<table class="table table-striped table-hover" id="demandsTable">
 									<thead class="thead-dark">
 										<tr>
 											<th>#</th>
@@ -326,6 +401,8 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 											<th><i class="fa-solid fa-file-contract"></i> Radicado</th>
 											<th><i class="fa-solid fa-building-columns"></i> Despacho</th>
 											<th><i class="fa-solid fa-user-tie"></i> Abogado</th>
+											<th><i class="fa-solid fa-calendar-days"></i> Días (creación)</th>
+											<th><i class="fa-solid fa-user-clock"></i> Días (abogado)</th>
 											<th><i class="fa-solid fa-hourglass-half"></i> Respuesta demanda (días)</th>
 											<th><i class="fa-solid fa-info-circle"></i> Estado</th>
 											<th><i class="fa-solid fa-gear"></i> Acciones</th>
@@ -370,6 +447,18 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 											if (isset($row['realizada']) && $row['realizada'] == 1) {
 												$bg_style = 'background:#e9ecef';
 											}
+
+											// Días desde creación y desde asignación de abogado (se congelan al cerrar el caso)
+											$dias_creacion = null;
+											if (!empty($row['fecha_alta_dem'])) {
+												$fin_dc = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_creacion = max(0, floor(($fin_dc - strtotime($row['fecha_alta_dem'])) / 86400));
+											}
+											$dias_asignacion = null;
+											if (!empty($row['fecha_asignacion_jur'])) {
+												$fin_da = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_asignacion = max(0, floor(($fin_da - strtotime($row['fecha_asignacion_jur'])) / 86400));
+											}
 											?>
 											<tr style="<?php echo $bg_style; ?>">
 												<td><?php echo $contador; ?></td>
@@ -377,14 +466,16 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 												<td><strong><?php echo htmlspecialchars($row['accionante_dem']); ?></strong></td>
 												<td><?php echo htmlspecialchars($row['rad_dem']); ?></td>
 												<td><?php echo htmlspecialchars($row['desp_judi_dem']); ?></td>
-												<td><?php echo htmlspecialchars($row['nom_jur']); ?></td>
+												<td><?php echo !empty($row['nom_jur']) ? htmlspecialchars($row['nom_jur']) : '<span class="badge-role badge-inactive">Sin asignar</span>'; ?></td>
+												<td><?php echo $dias_creacion !== null ? intval($dias_creacion) . ' d.' : '—'; ?></td>
+												<td><?php echo $dias_asignacion !== null ? intval($dias_asignacion) . ' d.' : '—'; ?></td>
 												<td><?php echo is_null($days_passed) ? '—' : intval($days_passed); ?></td>
 												<td><?php echo htmlspecialchars(substr($row['est_act_proc_dem'], 0, 50)) . (strlen($row['est_act_proc_dem']) > 50 ? '...' : ''); ?></td>
 												<td>
 													<div class="action-group">
-														<a href="editdemands.php?id_dem=<?php echo $row['id_dem']; ?>" class="btn-action btn-edit-custom" title="Editar">
+														<button class="btn-action btn-edit-custom open-edit-demand" data-id="<?php echo $row['id_dem']; ?>" title="Editar">
 															<i class="fa-solid fa-pen"></i>
-														</a>
+														</button>
 														<button class="btn-action btn-delete-custom" data-id="<?php echo $row['id_dem']; ?>" title="Eliminar">
 															<i class="fa-solid fa-trash"></i>
 														</button>
@@ -600,22 +691,29 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 						<div class="row">
 							<div class="col-md-8">
 								<div class="form-group">
-									<label for="add_doc_jur">Abogado Asignado <span class="text-danger">*</span></label>
-									<select name="doc_jur" class="form-control" id="add_doc_jur" required>
+									<label for="add_doc_jur">Abogado Asignado <small class="text-muted">(opcional)</small></label>
+									<select name="doc_jur" class="form-control" id="add_doc_jur" <?php echo ($tipo_usuario == 1) ? 'disabled' : ''; ?>>
 										<option value="">Seleccione un abogado</option>
 										<?php
 										// Poblar select desde la tabla usuarios (documento => nombre)
-										// Filtramos por tipo_usuario = 2 (abogados)
-										$consulta_jur = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre ASC";
+										// Filtramos por tipo_usuario = 1 (abogados). Si el usuario logueado es abogado, solo se muestra a sí mismo.
+										if ($tipo_usuario == 1 && !empty($doc_usuario_actual)) {
+											$consulta_jur = "SELECT documento, nombre FROM usuarios WHERE documento = '" . $mysqli->real_escape_string($doc_usuario_actual) . "'";
+										} else {
+											$consulta_jur = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre ASC";
+										}
 										$res_jur = $mysqli->query($consulta_jur);
 										if ($res_jur) {
 											while ($row_jur = $res_jur->fetch_assoc()) {
 												// value será el documento, label el nombre
-												echo '<option value="' . htmlspecialchars($row_jur['documento']) . '">' . htmlspecialchars($row_jur['nombre']) . '</option>';
+												echo '<option value="' . htmlspecialchars($row_jur['documento']) . '"' . ($tipo_usuario == 1 ? ' selected' : '') . '>' . htmlspecialchars($row_jur['nombre']) . '</option>';
 											}
 										}
 										?>
 									</select>
+									<?php if ($tipo_usuario == 1 && !empty($doc_usuario_actual)): ?>
+										<input type="hidden" name="doc_jur" value="<?php echo htmlspecialchars($doc_usuario_actual); ?>">
+									<?php endif; ?>
 								</div>
 							</div>
 							<div class="col-md-4">
@@ -730,6 +828,88 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 				$('#add_fecha_dem').val(new Date().toISOString().split('T')[0]);
 			});
 		});
+	</script>
+
+	<!-- Edit Demand Modal -->
+	<div class="modal fade" id="modalEditDemand" tabindex="-1" role="dialog" aria-hidden="true">
+		<div class="modal-dialog modal-lg" role="document">
+			<div class="modal-content" id="modalEditDemandContent">
+				<!-- Contenido cargado dinámicamente -->
+			</div>
+		</div>
+	</div>
+
+	<script>
+	$(function(){
+		// Sincronizar la barra de scroll superior con el scroll horizontal de la tabla
+		var $scrollTop = $('#demandsTableScrollTop');
+		var $scrollTopInner = $('#demandsTableScrollTopInner');
+		var $tableResponsive = $('#demandsTableResponsive');
+		var $table = $('#demandsTable');
+
+		function syncScrollTopWidth() {
+			$scrollTopInner.width($table.outerWidth());
+		}
+		syncScrollTopWidth();
+		$(window).on('resize', syncScrollTopWidth);
+
+		$scrollTop.on('scroll', function() {
+			$tableResponsive.scrollLeft($scrollTop.scrollLeft());
+		});
+		$tableResponsive.on('scroll', function() {
+			$scrollTop.scrollLeft($tableResponsive.scrollLeft());
+		});
+
+		// Permitir desplazar la tabla horizontalmente sosteniendo el click y moviendo el mouse
+		var isDragging = false;
+		var dragStartX = 0;
+		var dragStartScrollLeft = 0;
+
+		$tableResponsive.on('mousedown', function(e) {
+			isDragging = true;
+			$tableResponsive.addClass('dragging');
+			dragStartX = e.pageX;
+			dragStartScrollLeft = $tableResponsive.scrollLeft();
+		});
+
+		$(document).on('mousemove', function(e) {
+			if (!isDragging) return;
+			e.preventDefault();
+			var walk = e.pageX - dragStartX;
+			$tableResponsive.scrollLeft(dragStartScrollLeft - walk);
+		});
+
+		$(document).on('mouseup', function() {
+			if (!isDragging) return;
+			isDragging = false;
+			$tableResponsive.removeClass('dragging');
+		});
+
+		// Abrir modal de edición y cargar el fragmento
+		$(document).on('click', '.open-edit-demand', function(){
+			var id = $(this).data('id');
+			$('#modalEditDemandContent').html('<div class="p-4 text-center">Cargando...</div>');
+			$('#modalEditDemand').modal('show');
+			$.get('editdemands_modal.php', { id_dem: id }).done(function(html){
+				$('#modalEditDemandContent').html(html);
+			}).fail(function(xhr){
+				$('#modalEditDemandContent').html('<div class="p-3 text-danger">Error cargando formulario: HTTP '+xhr.status+'</div>');
+			});
+		});
+
+		// Delegate submit from modal form
+		$(document).on('submit', '#modalEditDemandContent form#formEditDemand', function(e){
+			e.preventDefault();
+			var form = this;
+			if (!form.checkValidity()) { form.reportValidity(); return; }
+			var data = $(form).serialize();
+			$.post('editdemands1.php', data).done(function(resp){
+				try { var j = (typeof resp === 'string') ? JSON.parse(resp) : resp; } catch(e){ j = {success:false, message:'Respuesta no valida'}; }
+				if (j.success) { Swal.fire('Actualizado', j.message, 'success').then(function(){ location.reload(); }); }
+				else { Swal.fire('Error', j.message || 'No se pudo actualizar', 'error'); }
+			}).fail(function(xhr){ Swal.fire('Error', 'HTTP '+xhr.status+': '+xhr.responseText, 'error'); });
+		});
+	});
 	</script>
 
 </body>

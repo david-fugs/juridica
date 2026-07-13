@@ -17,16 +17,12 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-	<met		<script src="js/app.js"></script>
-		<script src="https://www.jose-aguilar.com/scripts/fontawesome/js/all.min.js" data-auto-replace-svg="nest"></script>
-
-	</body>
-</html>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<title>JURIDICA - Consultar Reclamaciones</title>
 	<link rel="stylesheet" href="css/styles.css">
 	<link rel="stylesheet" href="../../css/bootstrap.min.css">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm">
-	<script src="https://kit.fontawesome.com/fed2435e21.js" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
 	<style>
 		.responsive {
@@ -162,6 +158,43 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 			white-space: nowrap;
 			vertical-align: middle;
 		}
+
+		/* Estilos mejorados para la tabla (consistentes con Conciliaciones) */
+		.table {
+			background: white;
+			border-radius: 8px;
+			overflow: hidden;
+			box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+		}
+
+		.table thead th {
+			background: linear-gradient(135deg, #2c3e50, #34495e);
+			color: white;
+			font-weight: 600;
+			border: none;
+			padding: 15px 12px;
+			text-align: center;
+		}
+
+		.table tbody tr {
+			transition: all 0.2s ease;
+		}
+
+		.table tbody tr:hover {
+			background: #f8f9fa;
+			transform: translateY(-1px);
+			box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+		}
+
+		.table td {
+			padding: 12px;
+			vertical-align: middle;
+			border-top: 1px solid #ecf0f1;
+		}
+
+		.table tbody tr:first-child td {
+			border-top: none;
+		}
 	</style>
     </head>
 <body>
@@ -203,6 +236,13 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
                         <option value="">Todos los estados</option>
                         <option value="activa" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'activa') ? 'selected' : ''; ?>>Activas</option>
                         <option value="realizada" <?php echo (isset($_GET['estado']) && $_GET['estado'] == 'realizada') ? 'selected' : ''; ?>>Realizadas</option>
+                    </select>
+                </div>
+                <div class="form-group mx-2">
+                    <select name="asignacion" class="form-control">
+                        <option value="">Todos (con/sin abogado)</option>
+                        <option value="sin" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'sin') ? 'selected' : ''; ?>>Sin abogado asignado</option>
+                        <option value="con" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'con') ? 'selected' : ''; ?>>Con abogado asignado</option>
                     </select>
                 </div>
                 <div class="form-group mx-2">
@@ -255,7 +295,15 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 		} elseif ($estado_filter === 'activa') {
 			$where_conditions[] = "(reclamaciones.realizada = 0 OR reclamaciones.realizada IS NULL)";
 		}
-		
+
+		// Filtro por asignación de abogado
+		@$asignacion_filter = isset($_GET['asignacion']) ? $_GET['asignacion'] : '';
+		if ($asignacion_filter === 'sin') {
+			$where_conditions[] = "reclamaciones.doc_jur IS NULL";
+		} elseif ($asignacion_filter === 'con') {
+			$where_conditions[] = "reclamaciones.doc_jur IS NOT NULL";
+		}
+
 		if (!empty($nom_rec)) {
 					$where_conditions[] = "nom_rec LIKE ?";
 					$params[] = "%$nom_rec%";
@@ -321,6 +369,8 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 											<th><i class="fa-solid fa-file-text"></i> Reclamación</th>
 											<th><i class="fa-solid fa-file-contract"></i> Radicado</th>
 											<th><i class="fa-solid fa-user-tie"></i> Abogado</th>
+											<th><i class="fa-solid fa-calendar-days"></i> Días (creación)</th>
+											<th><i class="fa-solid fa-user-clock"></i> Días (abogado)</th>
 											<th><i class="fa-solid fa-info-circle"></i> Estado</th>
 											<th><i class="fa-solid fa-gear"></i> Acciones</th>
 										</tr>
@@ -329,6 +379,17 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 										<?php
 										$contador = $offset + 1;
 										while ($row = $result->fetch_assoc()) {
+											// Días desde creación y desde asignación de abogado (se congelan al cerrar el caso)
+											$dias_creacion = null;
+											if (!empty($row['fecha_alta_rec'])) {
+												$fin_dc = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_creacion = max(0, floor(($fin_dc - strtotime($row['fecha_alta_rec'])) / 86400));
+											}
+											$dias_asignacion = null;
+											if (!empty($row['fecha_asignacion_jur'])) {
+												$fin_da = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_asignacion = max(0, floor(($fin_da - strtotime($row['fecha_asignacion_jur'])) / 86400));
+											}
 										?>
 											<tr>
 												<td><?php echo $contador; ?></td>
@@ -336,16 +397,25 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 												<td><strong><?php echo htmlspecialchars($row['nom_rec']); ?></strong></td>
 												<td><?php echo htmlspecialchars(substr($row['reclamacion_rec'], 0, 50)) . (strlen($row['reclamacion_rec']) > 50 ? '...' : ''); ?></td>
 												<td><?php echo htmlspecialchars($row['rad_rec']); ?></td>
-												<td><?php echo htmlspecialchars($row['nom_jur']); ?></td>
+												<td><?php echo !empty($row['nom_jur']) ? htmlspecialchars($row['nom_jur']) : '<span class="badge-role badge-inactive">Sin asignar</span>'; ?></td>
+												<td><?php echo $dias_creacion !== null ? intval($dias_creacion) . ' d.' : '—'; ?></td>
+												<td><?php echo $dias_asignacion !== null ? intval($dias_asignacion) . ' d.' : '—'; ?></td>
 												<td><?php echo htmlspecialchars(substr($row['est_res_rec'], 0, 40)) . (strlen($row['est_res_rec']) > 40 ? '...' : ''); ?></td>
 												<td>
 													<div class="action-group">
-														<a href="editclaims.php?id_rec=<?php echo $row['id_rec']; ?>" class="btn-action btn-edit-custom" title="Editar">
+														<button class="btn-action btn-edit-custom open-edit-claim" data-id="<?php echo $row['id_rec']; ?>" title="Editar">
 															<i class="fa-solid fa-pen"></i>
-														</a>
+														</button>
 														<button class="btn-action btn-delete-custom" data-id="<?php echo $row['id_rec']; ?>" title="Eliminar">
 															<i class="fa-solid fa-trash"></i>
 														</button>
+														<?php if (!isset($row['realizada']) || $row['realizada'] != 1): ?>
+															<button class="btn-action btn-success btn-mark-done-claim" data-id="<?php echo $row['id_rec']; ?>" title="Marcar realizada">
+																<i class="fa-solid fa-check"></i>
+															</button>
+														<?php else: ?>
+															<span class="badge badge-secondary">Realizada</span>
+														<?php endif; ?>
 													</div>
 												</td>
 											</tr>
@@ -462,6 +532,34 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 						});
 					}
 				});
+
+				// Marcar como realizada
+				$(document).on('click', '.btn-mark-done-claim', function(e){
+					e.preventDefault();
+					var id = $(this).data('id');
+					Swal.fire({
+						title: '¿Marcar como realizada?',
+						text: 'Confirmar que la reclamación está realizada.',
+						icon: 'question',
+						showCancelButton: true,
+						confirmButtonText: 'Sí, marcar',
+						cancelButtonText: 'Cancelar'
+					}).then(function(result){
+						if(result.isConfirmed){
+							$.post('markclaim.php', { id_rec: id }, function(resp){
+								if(resp && resp.success){
+									Swal.fire('Actualizado', resp.message || 'Marcado como realizado', 'success').then(function(){
+										location.reload();
+									});
+								} else {
+									Swal.fire('Error', (resp && resp.message) ? resp.message : 'Error al marcar', 'error');
+								}
+							}, 'json').fail(function(){
+								Swal.fire('Error', 'Error en la petición', 'error');
+							});
+						}
+					});
+				});
 			});
 		});
 	</script>
@@ -512,22 +610,29 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 							</div>
 							<div class="col-md-5">
 								<div class="form-group">
-									<label for="add_doc_jur">Abogado Asignado <span class="text-danger">*</span></label>
-									<select name="doc_jur" class="form-control" id="add_doc_jur" required>
+									<label for="add_doc_jur">Abogado Asignado <small class="text-muted">(opcional)</small></label>
+									<select name="doc_jur" class="form-control" id="add_doc_jur" <?php echo ($tipo_usuario == 1) ? 'disabled' : ''; ?>>
 										<option value="">Seleccione un abogado</option>
 										<?php
 										// Poblar select desde la tabla usuarios (documento => nombre)
-										// Filtramos por tipo_usuario = 2 (abogados)
-										$consulta_jur = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre ASC";
+										// Filtramos por tipo_usuario = 1 (abogados). Si el usuario logueado es abogado, solo se muestra a sí mismo.
+										if ($tipo_usuario == 1 && !empty($doc_usuario_actual)) {
+											$consulta_jur = "SELECT documento, nombre FROM usuarios WHERE documento = '" . $mysqli->real_escape_string($doc_usuario_actual) . "'";
+										} else {
+											$consulta_jur = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre ASC";
+										}
 										$res_jur = $mysqli->query($consulta_jur);
 										if ($res_jur) {
 											while ($row_jur = $res_jur->fetch_assoc()) {
 												// value será el documento, label el nombre
-												echo '<option value="' . htmlspecialchars($row_jur['documento']) . '">' . htmlspecialchars($row_jur['nombre']) . '</option>';
+												echo '<option value="' . htmlspecialchars($row_jur['documento']) . '"' . ($tipo_usuario == 1 ? ' selected' : '') . '>' . htmlspecialchars($row_jur['nombre']) . '</option>';
 											}
 										}
 										?>
 									</select>
+									<?php if ($tipo_usuario == 1 && !empty($doc_usuario_actual)): ?>
+										<input type="hidden" name="doc_jur" value="<?php echo htmlspecialchars($doc_usuario_actual); ?>">
+									<?php endif; ?>
 								</div>
 							</div>
 							<div class="col-md-3">
@@ -636,8 +741,44 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 			});
 		});
 	</script>
-		<script src="js/app.js"></script>
-		<script src="https://www.jose-aguilar.com/scripts/fontawesome/js/all.min.js" data-auto-replace-svg="nest"></script>
+
+	<!-- Edit Claim Modal -->
+	<div class="modal fade" id="modalEditClaim" tabindex="-1" role="dialog" aria-hidden="true">
+		<div class="modal-dialog modal-lg" role="document">
+			<div class="modal-content" id="modalEditClaimContent">
+				<!-- Contenido cargado dinámicamente -->
+			</div>
+		</div>
+	</div>
+
+	<script>
+	$(function(){
+		// Abrir modal de edición y cargar el fragmento
+		$(document).on('click', '.open-edit-claim', function(){
+			var id = $(this).data('id');
+			$('#modalEditClaimContent').html('<div class="p-4 text-center">Cargando...</div>');
+			$('#modalEditClaim').modal('show');
+			$.get('editclaims_modal.php', { id_rec: id }).done(function(html){
+				$('#modalEditClaimContent').html(html);
+			}).fail(function(xhr){
+				$('#modalEditClaimContent').html('<div class="p-3 text-danger">Error cargando formulario: HTTP '+xhr.status+'</div>');
+			});
+		});
+
+		// Delegate submit from modal form
+		$(document).on('submit', '#modalEditClaimContent form#formEditClaim', function(e){
+			e.preventDefault();
+			var form = this;
+			if (!form.checkValidity()) { form.reportValidity(); return; }
+			var data = $(form).serialize();
+			$.post('editclaims1.php', data).done(function(resp){
+				try { var j = (typeof resp === 'string') ? JSON.parse(resp) : resp; } catch(e){ j = {success:false, message:'Respuesta no valida'}; }
+				if (j.success) { Swal.fire('Actualizado', j.message, 'success').then(function(){ location.reload(); }); }
+				else { Swal.fire('Error', j.message || 'No se pudo actualizar', 'error'); }
+			}).fail(function(xhr){ Swal.fire('Error', 'HTTP '+xhr.status+': '+xhr.responseText, 'error'); });
+		});
+	});
+	</script>
 
 	</body>
 </html>

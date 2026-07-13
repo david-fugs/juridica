@@ -21,8 +21,8 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 	<title>JURIDICA - Consultar Conciliaciones</title>
 	<link rel="stylesheet" href="css/styles.css">
 	<link rel="stylesheet" href="../../css/bootstrap.min.css">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm">
-	<script src="https://kit.fontawesome.com/fed2435e21.js" crossorigin="anonymous"></script>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
 	<style>
 		.responsive {
@@ -58,6 +58,14 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 
 		.badge-inactive {
 			background: #7f8c8d;
+		}
+
+		.badge-warning {
+			background: #f39c12;
+		}
+
+		.badge-info {
+			background: #2c7be5;
 		}
 
 		/* Action buttons: neutral outline, hover filled */
@@ -204,6 +212,27 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 		.table tbody tr:first-child td {
 			border-top: none;
 		}
+
+		/* Barra de scroll horizontal superior, sincronizada con la tabla */
+		.table-scroll-top {
+			overflow-x: auto;
+			overflow-y: hidden;
+			height: 18px;
+			margin-bottom: 6px;
+		}
+
+		.table-scroll-top-inner {
+			height: 1px;
+		}
+
+		#concTableResponsive {
+			cursor: grab;
+		}
+
+		#concTableResponsive.dragging {
+			cursor: grabbing;
+			user-select: none;
+		}
 	</style>
 </head>
 
@@ -252,6 +281,13 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 									<input name="nom_jur" type="text" class="form-control" placeholder="Abogado Asignado" size=30
 										value="<?php echo isset($_GET['nom_jur']) ? $_GET['nom_jur'] : ''; ?>">
 								</div>
+								<div class="form-group mx-2">
+									<select name="asignacion" class="form-control">
+										<option value="">Todos (con/sin abogado)</option>
+										<option value="sin" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'sin') ? 'selected' : ''; ?>>Sin abogado asignado</option>
+										<option value="con" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'con') ? 'selected' : ''; ?>>Con abogado asignado</option>
+									</select>
+								</div>
 								<button type="submit" class="btn btn-primary mx-2">
 									<i class="fa-solid fa-search"></i> Buscar
 								</button>
@@ -276,13 +312,6 @@ if ($tipo_usuario == 1) {
 		$row_doc = $res_doc->fetch_assoc();
 		$doc_usuario_actual = $row_doc['documento'];
 	}
-    
-    // Filtro por estado realizada
-    if ($estado_filter === 'realizada') {
-        $where_conditions[] = "conciliaciones.realizada = 1";
-    } elseif ($estado_filter === 'activa') {
-        $where_conditions[] = "(conciliaciones.realizada = 0 OR conciliaciones.realizada IS NULL)";
-    }
 }
 
 // Obtener parámetros de búsqueda
@@ -306,6 +335,14 @@ if (!empty($doc_conc)) {
 }
 if (!empty($nom_jur)) {
     $whereConditions[] = "u.nombre LIKE '%" . $mysqli->real_escape_string($nom_jur) . "%'";
+}
+
+// Filtro por asignación de abogado
+$asignacion_filter = isset($_GET['asignacion']) ? $_GET['asignacion'] : '';
+if ($asignacion_filter === 'sin') {
+    $whereConditions[] = "c.doc_jur IS NULL";
+} elseif ($asignacion_filter === 'con') {
+    $whereConditions[] = "c.doc_jur IS NOT NULL";
 }
 
 $whereClause = '';
@@ -338,43 +375,66 @@ if ($base_qs) $base_qs .= '&';
 ?>
 
 					<div class="table-container">
-						<div class="table-responsive">
-							<table class="table table-hover table-sm">
+						<div class="table-scroll-top" id="tableScrollTop"><div class="table-scroll-top-inner" id="tableScrollTopInner"></div></div>
+						<div class="table-responsive" id="concTableResponsive">
+							<table class="table table-hover table-sm" id="concTable">
 							<thead>
 								<tr>
 									<th>Fecha</th>
 									<th>Accionante</th>
 									<th>Documento</th>
 									<th>Causa/Litigio</th>
-									<th>Medio Control</th>
+									<th>Estado</th>
 									<th>Procuraduría</th>
 									<th>Radicado</th>
 									<th>Abogado</th>
+									<th>Días (creación)</th>
+									<th>Días (abogado)</th>
 									<th>Observaciones</th>
 									<th>Acciones</th>
 								</tr>
 							</thead>
 								<tbody>
 									<?php
-									$sql = "SELECT c.id_conc, c.accionante_conc, c.doc_conc, c.causa_litigio_conc, c.medio_control_conc, 
-											c.procuraduria_conc, c.rad_conc, c.fecha_conc, c.estado_conc, c.obs_conc, u.nombre as nom_jur 
-										FROM conciliaciones c 
-										LEFT JOIN usuarios u ON c.doc_jur = u.documento 
-										$whereClause 
-										ORDER BY c.fecha_conc DESC, c.id_conc DESC 
+									$sql = "SELECT c.id_conc, c.accionante_conc, c.doc_conc, c.causa_litigio_conc, c.medio_control_conc,
+											c.procuraduria_conc, c.rad_conc, c.fecha_conc, c.doc_jur, c.fecha_alta_conc, c.fecha_asignacion_jur, c.estado_conc, c.fecha_cierre, c.obs_conc, u.nombre as nom_jur
+										FROM conciliaciones c
+										LEFT JOIN usuarios u ON c.doc_jur = u.documento
+										$whereClause
+										ORDER BY c.fecha_conc DESC, c.id_conc DESC
 										LIMIT {$per_page} OFFSET {$offset}";
 									$res = $mysqli->query($sql);
 									if ($res && $res->num_rows > 0) {
 										while ($row = $res->fetch_assoc()) {
+											switch ($row['estado_conc']) {
+												case 'Activa': $estado_badge_class = 'badge-active'; break;
+												case 'En proceso': $estado_badge_class = 'badge-warning'; break;
+												case 'Resuelta': $estado_badge_class = 'badge-info'; break;
+												case 'Cerrada': $estado_badge_class = 'badge-inactive'; break;
+												default: $estado_badge_class = 'badge-inactive';
+											}
+											// Días desde creación y desde asignación de abogado (se congelan al cerrar el caso)
+											$dias_creacion = null;
+											if (!empty($row['fecha_alta_conc'])) {
+												$fin_dc = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_creacion = max(0, floor(($fin_dc - strtotime($row['fecha_alta_conc'])) / 86400));
+											}
+											$dias_asignacion = null;
+											if (!empty($row['fecha_asignacion_jur'])) {
+												$fin_da = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_asignacion = max(0, floor(($fin_da - strtotime($row['fecha_asignacion_jur'])) / 86400));
+											}
 											echo '<tr>';
-											echo '<td>' . htmlspecialchars($row['fecha_conc']) . '</td>';
+											echo '<td>' . htmlspecialchars(date('d/m/Y', strtotime($row['fecha_conc']))) . '</td>';
 											echo '<td><span class="single-line-ellipsis" title="' . htmlspecialchars($row['accionante_conc']) . '">' . htmlspecialchars($row['accionante_conc']) . '</span></td>';
 											echo '<td>' . htmlspecialchars($row['doc_conc']) . '</td>';
 											echo '<td><span class="single-line-ellipsis" title="' . htmlspecialchars($row['causa_litigio_conc']) . '">' . htmlspecialchars($row['causa_litigio_conc']) . '</span></td>';
-										echo '<td>' . htmlspecialchars($row['medio_control_conc']) . '</td>';
+										echo '<td><span class="badge-role ' . $estado_badge_class . '">' . htmlspecialchars($row['estado_conc']) . '</span></td>';
 										echo '<td>' . htmlspecialchars($row['procuraduria_conc']) . '</td>';
 										echo '<td>' . htmlspecialchars($row['rad_conc']) . '</td>';
-										echo '<td>' . htmlspecialchars($row['nom_jur']) . '</td>';
+										echo '<td>' . (!empty($row['nom_jur']) ? htmlspecialchars($row['nom_jur']) : '<span class="badge-role badge-inactive">Sin asignar</span>') . '</td>';
+										echo '<td>' . ($dias_creacion !== null ? intval($dias_creacion) . ' d.' : '—') . '</td>';
+										echo '<td>' . ($dias_asignacion !== null ? intval($dias_asignacion) . ' d.' : '—') . '</td>';
 										echo '<td><span class="single-line-ellipsis" title="' . htmlspecialchars($row['obs_conc']) . '">' . htmlspecialchars($row['obs_conc']) . '</span></td>';
 										echo '<td>';
 										echo '<div class="action-group">';
@@ -385,7 +445,7 @@ if ($base_qs) $base_qs .= '&';
 											echo '</tr>';
 										}
 									} else {
-										echo '<tr><td colspan="11" class="text-center">No se encontraron conciliaciones</td></tr>';
+										echo '<tr><td colspan="12" class="text-center">No se encontraron conciliaciones</td></tr>';
 									}
 									?>
 								</tbody>
@@ -492,16 +552,23 @@ if ($base_qs) $base_qs .= '&';
 
 						<div class="form-row">
 							<div class="form-group col-md-12">
-								<label>Abogado Asignado</label>
-								<select name="doc_jur" class="form-control" required>
+								<label>Abogado Asignado <small class="text-muted">(opcional)</small></label>
+								<select name="doc_jur" class="form-control" <?php echo ($tipo_usuario == 1) ? 'disabled' : ''; ?>>
 									<option value="">-- Seleccione abogado --</option>
 									<?php
-									$q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre");
+									if ($tipo_usuario == 1 && !empty($doc_usuario_actual)) {
+										$q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE documento = '" . $mysqli->real_escape_string($doc_usuario_actual) . "'");
+									} else {
+										$q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre");
+									}
 									while ($u = $q->fetch_assoc()) {
-										echo '<option value="' . htmlspecialchars($u['documento']) . '">' . htmlspecialchars($u['nombre']) . '</option>';
+										echo '<option value="' . htmlspecialchars($u['documento']) . '"' . ($tipo_usuario == 1 ? ' selected' : '') . '>' . htmlspecialchars($u['nombre']) . '</option>';
 									}
 									?>
 								</select>
+								<?php if ($tipo_usuario == 1 && !empty($doc_usuario_actual)): ?>
+									<input type="hidden" name="doc_jur" value="<?php echo htmlspecialchars($doc_usuario_actual); ?>">
+								<?php endif; ?>
 							</div>
 						</div>
 
@@ -528,6 +595,50 @@ if ($base_qs) $base_qs .= '&';
 
 	<script>
 	$(function(){
+		// Sincronizar la barra de scroll superior con el scroll horizontal de la tabla
+		var $scrollTop = $('#tableScrollTop');
+		var $scrollTopInner = $('#tableScrollTopInner');
+		var $tableResponsive = $('#concTableResponsive');
+		var $table = $('#concTable');
+
+		function syncScrollTopWidth() {
+			$scrollTopInner.width($table.outerWidth());
+		}
+		syncScrollTopWidth();
+		$(window).on('resize', syncScrollTopWidth);
+
+		$scrollTop.on('scroll', function() {
+			$tableResponsive.scrollLeft($scrollTop.scrollLeft());
+		});
+		$tableResponsive.on('scroll', function() {
+			$scrollTop.scrollLeft($tableResponsive.scrollLeft());
+		});
+
+		// Permitir desplazar la tabla horizontalmente sosteniendo el click y moviendo el mouse
+		var isDragging = false;
+		var dragStartX = 0;
+		var dragStartScrollLeft = 0;
+
+		$tableResponsive.on('mousedown', function(e) {
+			isDragging = true;
+			$tableResponsive.addClass('dragging');
+			dragStartX = e.pageX;
+			dragStartScrollLeft = $tableResponsive.scrollLeft();
+		});
+
+		$(document).on('mousemove', function(e) {
+			if (!isDragging) return;
+			e.preventDefault();
+			var walk = e.pageX - dragStartX;
+			$tableResponsive.scrollLeft(dragStartScrollLeft - walk);
+		});
+
+		$(document).on('mouseup', function() {
+			if (!isDragging) return;
+			isDragging = false;
+			$tableResponsive.removeClass('dragging');
+		});
+
 		// Submit add conciliación via AJAX
 		$('#formAddConc').on('submit', function(e){
 			e.preventDefault();

@@ -12,7 +12,7 @@ if (!isset($_SESSION['id'])) {
 if (isset($_POST['id_rec'])) {
     $id_rec = intval($_POST['id_rec']);
     
-    $sql = "UPDATE reclamaciones SET realizada = 1 WHERE id_rec = ?";
+    $sql = "UPDATE reclamaciones SET realizada = 1, fecha_cierre = COALESCE(fecha_cierre, NOW()) WHERE id_rec = ?";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param("i", $id_rec);
     

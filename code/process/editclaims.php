@@ -186,12 +186,12 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
                             </div>
                             <div class="col-12 col-sm-5">
                                 <label for="doc_jur">ABOGADO ASIGNADO:</label>
-                                <select name='doc_jur' class='form-control' id='selectJur' required>
+                                <select name='doc_jur' class='form-control' id='selectJur' <?php if ($tipo_usuario == 1) echo 'disabled'; ?>>
                                     <option value=''></option>
                                     <?php
                                     header('Content-Type: text/html;charset=utf-8');
-                                    // Cambiar consulta para usar tabla usuarios
-                                    $consulta = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre ASC";
+                                    // Cambiar consulta para usar tabla usuarios (filtrando abogados, tipo_usuario = 1)
+                                    $consulta = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre ASC";
                                     $res = mysqli_query($mysqli, $consulta);
                                     if ($res) {
                                         while ($row1 = $res->fetch_assoc()) {
@@ -206,6 +206,10 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
                                     }
                                     ?>
                                 </select>
+                                <?php if ($tipo_usuario == 1): ?>
+                                    <!-- Campo oculto para enviar el valor cuando está disabled -->
+                                    <input type='hidden' name='doc_jur' value='<?php echo htmlspecialchars($row['doc_jur']); ?>' />
+                                <?php endif; ?>
                             </div>
                             <div class="col-12 col-sm-4">
                                 <label for="est_res_rec">ESTADO / RESPUESTA:</label>

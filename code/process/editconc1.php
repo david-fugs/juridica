@@ -14,14 +14,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $procuraduria_conc = isset($_POST['procuraduria_conc']) ? trim($_POST['procuraduria_conc']) : '';
     $rad_conc = isset($_POST['rad_conc']) ? trim($_POST['rad_conc']) : '';
     $fecha_conc = isset($_POST['fecha_conc']) ? trim($_POST['fecha_conc']) : '';
-    $doc_jur = isset($_POST['doc_jur']) ? trim($_POST['doc_jur']) : '';
+    $doc_jur = isset($_POST['doc_jur']) && trim($_POST['doc_jur']) !== '' ? trim($_POST['doc_jur']) : null;
     $estado_conc = isset($_POST['estado_conc']) ? trim($_POST['estado_conc']) : '';
     $obs_conc = isset($_POST['obs_conc']) ? trim($_POST['obs_conc']) : '';
-    
+
     if ($id_conc > 0 && $accionante_conc !== '' && $doc_conc !== '') {
         $fecha_edit_conc = date('Y-m-d H:i:s');
-        
-        $stmt = $mysqli->prepare("UPDATE conciliaciones SET accionante_conc=?, doc_conc=?, causa_litigio_conc=?, medio_control_conc=?, procuraduria_conc=?, rad_conc=?, fecha_conc=?, doc_jur=?, estado_conc=?, obs_conc=?, fecha_edit_conc=? WHERE id_conc=? LIMIT 1");
+
+        // doc_jur opcional: si se asigna por primera vez se registra fecha_asignacion_jur (se preserva si ya existía)
+        $fecha_asignacion_expr = is_null($doc_jur) ? 'NULL' : 'COALESCE(fecha_asignacion_jur, NOW())';
+
+        // Estados terminales congelan el conteo de días (se preserva la primera fecha de cierre)
+        $estados_cerrados = ['Resuelta', 'Cerrada'];
+        $fecha_cierre_expr = in_array($estado_conc, $estados_cerrados, true) ? 'COALESCE(fecha_cierre, NOW())' : 'NULL';
+
+        $stmt = $mysqli->prepare("UPDATE conciliaciones SET accionante_conc=?, doc_conc=?, causa_litigio_conc=?, medio_control_conc=?, procuraduria_conc=?, rad_conc=?, fecha_conc=?, doc_jur=?, fecha_asignacion_jur=$fecha_asignacion_expr, estado_conc=?, fecha_cierre=$fecha_cierre_expr, obs_conc=?, fecha_edit_conc=? WHERE id_conc=? LIMIT 1");
         $stmt->bind_param('sssssssssssi', $accionante_conc, $doc_conc, $causa_litigio_conc, $medio_control_conc, $procuraduria_conc, $rad_conc, $fecha_conc, $doc_jur, $estado_conc, $obs_conc, $fecha_edit_conc, $id_conc);
         
         if ($stmt->execute()) {

@@ -15,7 +15,7 @@
     $rad_dem = isset($_POST['rad_dem']) ? $mysqli->real_escape_string(trim($_POST['rad_dem'])) : '';
     $desp_judi_dem = isset($_POST['desp_judi_dem']) ? $mysqli->real_escape_string(trim($_POST['desp_judi_dem'])) : '';
     $est_act_proc_dem = isset($_POST['est_act_proc_dem']) ? $mysqli->real_escape_string(strtoupper(trim($_POST['est_act_proc_dem']))) : '';
-    $doc_jur = isset($_POST['doc_jur']) ? $mysqli->real_escape_string($_POST['doc_jur']) : '';
+    $doc_jur = isset($_POST['doc_jur']) && trim($_POST['doc_jur']) !== '' ? $mysqli->real_escape_string(trim($_POST['doc_jur'])) : null;
     $interno_dem = isset($_POST['interno_dem']) ? $mysqli->real_escape_string(strtoupper(trim($_POST['interno_dem']))) : '';
     $obs_dem = isset($_POST['obs_dem']) ? $mysqli->real_escape_string(strtoupper(trim($_POST['obs_dem']))) : '';
     $auto_admisorio = isset($_POST['auto_admisorio']) && !empty($_POST['auto_admisorio']) ? $mysqli->real_escape_string($_POST['auto_admisorio']) : NULL;
@@ -32,8 +32,11 @@
 
     // Insertar demanda (incluye auto_admisorio y realizada por defecto 0)
     $auto_val = is_null($auto_admisorio) ? 'NULL' : "'".$auto_admisorio."'";
-    $sql = "INSERT INTO demandas (fecha_dem, accionante_dem, doc_dem, rad_dem, desp_judi_dem, est_act_proc_dem, doc_jur, interno_dem, obs_dem, estado_dem, fecha_alta_dem, fecha_edit_dem, id_usu, auto_admisorio, realizada) 
-        VALUES ('$fecha_dem', '$accionante_dem', '$doc_dem', '$rad_dem', '$desp_judi_dem', '$est_act_proc_dem', '$doc_jur', '$interno_dem', '$obs_dem', '$estado_dem', '$fecha_alta_dem', '$fecha_alta_dem', '$id_usu', $auto_val, 0)";
+    // doc_jur es opcional: si no se asigna abogado, queda NULL y sin fecha de asignación
+    $doc_jur_val = is_null($doc_jur) ? 'NULL' : "'$doc_jur'";
+    $fecha_asignacion_val = is_null($doc_jur) ? 'NULL' : "'$fecha_alta_dem'";
+    $sql = "INSERT INTO demandas (fecha_dem, accionante_dem, doc_dem, rad_dem, desp_judi_dem, est_act_proc_dem, doc_jur, fecha_asignacion_jur, interno_dem, obs_dem, estado_dem, fecha_alta_dem, fecha_edit_dem, id_usu, auto_admisorio, realizada)
+        VALUES ('$fecha_dem', '$accionante_dem', '$doc_dem', '$rad_dem', '$desp_judi_dem', '$est_act_proc_dem', $doc_jur_val, $fecha_asignacion_val, '$interno_dem', '$obs_dem', '$estado_dem', '$fecha_alta_dem', '$fecha_alta_dem', '$id_usu', $auto_val, 0)";
     
     if($mysqli->query($sql)){
         echo json_encode(['success' => true, 'message' => 'Demanda creada exitosamente']);

@@ -17,7 +17,7 @@ if(empty($id_dem)){
     exit;
 }
 
-$sql = "UPDATE demandas SET realizada=1 WHERE id_dem='".$id_dem."'";
+$sql = "UPDATE demandas SET realizada=1, fecha_cierre=COALESCE(fecha_cierre, NOW()) WHERE id_dem='".$id_dem."'";
 if($mysqli->query($sql)){
     echo json_encode(['success'=>true,'message'=>'Demanda marcada como realizada']);
 } else {

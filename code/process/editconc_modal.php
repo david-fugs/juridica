@@ -2,6 +2,8 @@
 session_start();
 include '../../conexion.php';
 
+$tipo_usuario = isset($_SESSION['tipo_usuario']) ? $_SESSION['tipo_usuario'] : null;
+
 $id_conc = isset($_GET['id_conc']) ? intval($_GET['id_conc']) : 0;
 $row = null;
 if ($id_conc > 0) {
@@ -77,7 +79,7 @@ if (!$row) {
     <div class="form-row">
         <div class="form-group col-md-6">
             <label>Fecha</label>
-            <input type="date" name="fecha_conc" class="form-control" value="<?php echo htmlspecialchars($row['fecha_conc']); ?>" required />
+            <input type="date" name="fecha_conc" class="form-control" value="<?php echo htmlspecialchars(substr($row['fecha_conc'], 0, 10)); ?>" required />
         </div>
         <div class="form-group col-md-6">
             <label>Estado</label>
@@ -93,10 +95,11 @@ if (!$row) {
     
     <div class="form-group">
         <label>Abogado</label>
-        <select name="doc_jur" class="form-control" required>
+        <select name="doc_jur" class="form-control" <?php echo ($tipo_usuario == 1) ? 'disabled' : ''; ?>>
             <option value="">-- Seleccione abogado --</option>
             <?php
-            $q = $mysqli->query("SELECT documento, nombre FROM usuarios ORDER BY nombre");
+            // Filtrar solo abogados (tipo_usuario = 1)
+            $q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre");
             if ($q) {
                 while ($u = $q->fetch_assoc()) {
                     $sel = ($row['doc_jur']==$u['documento'])? 'selected':'';
@@ -108,6 +111,9 @@ if (!$row) {
             }
             ?>
         </select>
+        <?php if ($tipo_usuario == 1): ?>
+            <input type="hidden" name="doc_jur" value="<?php echo htmlspecialchars($row['doc_jur']); ?>">
+        <?php endif; ?>
     </div>
     
     <div class="form-group">

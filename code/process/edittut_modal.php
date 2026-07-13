@@ -2,6 +2,8 @@
 session_start();
 include '../../conexion.php';
 
+$tipo_usuario = isset($_SESSION['tipo_usuario']) ? $_SESSION['tipo_usuario'] : null;
+
 $id_tut = isset($_GET['id_tut']) ? intval($_GET['id_tut']) : 0;
 $row = null;
 if ($id_tut > 0) {
@@ -59,11 +61,11 @@ if (!$row) {
     <div class="form-row">
         <div class="form-group col-md-6">
             <label>Abogado</label>
-            <select id="selectJur" name="doc_jur" class="form-control" required>
+            <select id="selectJur" name="doc_jur" class="form-control" <?php echo ($tipo_usuario == 1) ? 'disabled' : ''; ?>>
                 <option value="">-- Seleccione abogado --</option>
                 <?php
-                // Obtener todos los abogados sin filtro de estado
-                $q = $mysqli->query("SELECT documento, nombre FROM usuarios ORDER BY nombre");
+                // Filtrar solo abogados (tipo_usuario = 1)
+                $q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre");
                 if ($q) {
                     while ($u = $q->fetch_assoc()) {
                         $sel = ($row['doc_jur']==$u['documento'])? 'selected':'';
@@ -76,6 +78,9 @@ if (!$row) {
                 }
                 ?>
             </select>
+            <?php if ($tipo_usuario == 1): ?>
+                <input type="hidden" name="doc_jur" value="<?php echo htmlspecialchars($row['doc_jur']); ?>">
+            <?php endif; ?>
         </div>
         <div class="form-group col-md-6">
             <label>Estado</label>
@@ -86,6 +91,7 @@ if (!$row) {
                 <option value="Resuelta" <?php echo ($row['estado_tut']=='Resuelta')? 'selected':''; ?>>Resuelta</option>
                 <option value="Fallada" <?php echo ($row['estado_tut']=='Fallada')? 'selected':''; ?>>Fallada</option>
                 <option value="Archivada" <?php echo ($row['estado_tut']=='Archivada')? 'selected':''; ?>>Archivada</option>
+                <option value="Cerrada" <?php echo ($row['estado_tut']=='Cerrada')? 'selected':''; ?>>Cerrada</option>
             </select>
         </div>
     </div>

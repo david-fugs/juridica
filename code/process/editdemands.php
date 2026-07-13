@@ -199,12 +199,12 @@
                 <div class="row">
                     <div class="col-12 col-sm-4">
                         <label for="doc_jur">ABOGADO ASIGNADO:</label>
-                        <select name='doc_jur' class='form-control' id="selectJur" required <?php if($tipo_usuario == 1) echo 'disabled'; ?>>
+                        <select name='doc_jur' class='form-control' id="selectJur" <?php if($tipo_usuario == 1) echo 'disabled'; ?>>
                             <option value=''></option>
                             <?php
                                 header('Content-Type: text/html;charset=utf-8');
-                                // Poblar desde tabla usuarios (documento => nombre) filtrando abogados (tipo_usuario = 2)
-                                $consulta = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre ASC";
+                                // Poblar desde tabla usuarios (documento => nombre) filtrando abogados (tipo_usuario = 1)
+                                $consulta = "SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre ASC";
                                 $res = mysqli_query($mysqli, $consulta);
                                 if($res){
                                     while($row1 = $res->fetch_assoc())

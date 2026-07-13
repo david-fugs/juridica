@@ -159,7 +159,7 @@ if ($tipo_usuario == 2) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Boxicons CSS -->
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-  <script src="https://kit.fontawesome.com/fed2435e21.js" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <title>JURIDICA</title>
   <link rel="stylesheet" href="menu/style.css" />
 </head>
@@ -179,7 +179,7 @@ if ($tipo_usuario == 2) {
     <div class="navbar_content">
       <i class="bi bi-grid"></i>
       <i class="fa-solid fa-sun" id="darkLight"></i><!--<i class='bx bx-sun' id="darkLight"></i>-->
-      <a href="logout.php"> <i class="fa-solid fa-door-open"></i></a>
+      <a href="logout.php" class="logout-link" title="Cerrar sesión"><i class="fa-solid fa-door-open"></i> <span>Cerrar sesión</span></a>
       <img src="img/gobersecre.png" alt="" class="profile" />
     </div>
   </nav>
@@ -193,6 +193,7 @@ if ($tipo_usuario == 2) {
           <div class="menu_title menu_dahsboard"></div>
           <!-- duplicate or remove this li tag if you want to add or remove navlink with submenu -->
           <!-- start -->
+          <?php if ($tipo_usuario == 2) { ?>
           <li class="item">
             <div href="#" class="nav_link submenu_item">
               <span class="navlink_icon">
@@ -215,6 +216,7 @@ if ($tipo_usuario == 2) {
               <a href="#" class="nav_link sublink">Operadores</a>-->
             </ul>
           </li>
+          <?php } ?>
 
           <li class="item">
             <div href="#" class="nav_link submenu_item">

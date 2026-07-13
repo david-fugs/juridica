@@ -180,8 +180,8 @@
 		                            <label for="tipo_usuario"><strong>Tipo de Usuario:</strong></label>
 		                            <select class="form-control" id="tipo_usuario" name="tipo_usuario" required>
 		                                <option value="">Seleccione el tipo de usuario</option>
-		                                <option value="1" <?php echo (isset($_POST['tipo_usuario']) && $_POST['tipo_usuario'] == '1') ? 'selected' : ''; ?>>Administrador</option>
-		                                <option value="2" <?php echo (isset($_POST['tipo_usuario']) && $_POST['tipo_usuario'] == '2') ? 'selected' : ''; ?>>Abogado</option>
+		                                <option value="2" <?php echo (isset($_POST['tipo_usuario']) && $_POST['tipo_usuario'] == '2') ? 'selected' : ''; ?>>Administrador</option>
+		                                <option value="1" <?php echo (isset($_POST['tipo_usuario']) && $_POST['tipo_usuario'] == '1') ? 'selected' : ''; ?>>Abogado</option>
 		                            </select>
 		                        </div>
 		                        

@@ -19,9 +19,10 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $nom_rec = isset($_POST['nom_rec']) ? strtoupper(trim($_POST['nom_rec'])) : '';
     $reclamacion_rec = isset($_POST['reclamacion_rec']) ? strtoupper(trim($_POST['reclamacion_rec'])) : '';
     $rad_rec = isset($_POST['rad_rec']) ? trim($_POST['rad_rec']) : '';
-    $doc_jur = isset($_POST['doc_jur']) ? trim($_POST['doc_jur']) : '';
+    $doc_jur = isset($_POST['doc_jur']) && trim($_POST['doc_jur']) !== '' ? trim($_POST['doc_jur']) : null;
     $est_res_rec = isset($_POST['est_res_rec']) ? strtoupper(trim($_POST['est_res_rec'])) : '';
     $obs_rec = isset($_POST['obs_rec']) ? strtoupper(trim($_POST['obs_rec'])) : '';
+    $realizada = isset($_POST['realizada']) ? 1 : 0;
 
     // Minimal server-side validation
     $missing = [];
@@ -40,13 +41,19 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $nom_rec_s = $mysqli->real_escape_string($nom_rec);
     $reclamacion_rec_s = $mysqli->real_escape_string($reclamacion_rec);
     $rad_rec_s = $mysqli->real_escape_string($rad_rec);
-    $doc_jur_s = $mysqli->real_escape_string($doc_jur);
     $est_res_rec_s = $mysqli->real_escape_string($est_res_rec);
     $obs_rec_s = $mysqli->real_escape_string($obs_rec);
     $fecha_edit = date('Y-m-d H:i:s');
     $id_usu = $_SESSION['id'];
 
-    $sql = "UPDATE reclamaciones SET fecha_rec='$fecha_rec_s', nom_rec='$nom_rec_s', reclamacion_rec='$reclamacion_rec_s', rad_rec='$rad_rec_s', doc_jur='$doc_jur_s', est_res_rec='$est_res_rec_s', obs_rec='$obs_rec_s', fecha_edit_rec='$fecha_edit', id_usu='$id_usu' WHERE id_rec='$id_rec_s'";
+    // doc_jur opcional: si se asigna por primera vez se registra fecha_asignacion_jur (se preserva si ya existía)
+    $doc_jur_val = is_null($doc_jur) ? 'NULL' : "'" . $mysqli->real_escape_string($doc_jur) . "'";
+    $fecha_asignacion_expr = is_null($doc_jur) ? 'NULL' : 'COALESCE(fecha_asignacion_jur, NOW())';
+
+    // fecha_cierre se registra la primera vez que realizada=1 y se limpia si se desmarca
+    $fecha_cierre_expr = ($realizada == 1) ? 'COALESCE(fecha_cierre, NOW())' : 'NULL';
+
+    $sql = "UPDATE reclamaciones SET fecha_rec='$fecha_rec_s', nom_rec='$nom_rec_s', reclamacion_rec='$reclamacion_rec_s', rad_rec='$rad_rec_s', doc_jur=$doc_jur_val, fecha_asignacion_jur=$fecha_asignacion_expr, est_res_rec='$est_res_rec_s', obs_rec='$obs_rec_s', fecha_edit_rec='$fecha_edit', id_usu='$id_usu', realizada=$realizada, fecha_cierre=$fecha_cierre_expr WHERE id_rec='$id_rec_s'";
 
     if($mysqli->query($sql)){
         echo json_encode(['success' => true, 'message' => 'Reclamación actualizada correctamente']);

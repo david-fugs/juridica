@@ -18,7 +18,7 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $rad_dem = isset($_POST['rad_dem']) ? trim($_POST['rad_dem']) : '';
     $desp_judi_dem = isset($_POST['desp_judi_dem']) ? trim($_POST['desp_judi_dem']) : '';
     $est_act_proc_dem = isset($_POST['est_act_proc_dem']) ? strtoupper(trim($_POST['est_act_proc_dem'])) : '';
-    $doc_jur = isset($_POST['doc_jur']) ? trim($_POST['doc_jur']) : '';
+    $doc_jur = isset($_POST['doc_jur']) && trim($_POST['doc_jur']) !== '' ? trim($_POST['doc_jur']) : null;
     $interno_dem = isset($_POST['interno_dem']) ? strtoupper(trim($_POST['interno_dem'])) : '';
     $obs_dem = isset($_POST['obs_dem']) ? strtoupper(trim($_POST['obs_dem'])) : '';
     $auto_admisorio = isset($_POST['auto_admisorio']) && $_POST['auto_admisorio'] !== '' ? $_POST['auto_admisorio'] : NULL;
@@ -43,7 +43,6 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $rad_dem_s = $mysqli->real_escape_string($rad_dem);
     $desp_judi_dem_s = $mysqli->real_escape_string($desp_judi_dem);
     $est_act_proc_dem_s = $mysqli->real_escape_string($est_act_proc_dem);
-    $doc_jur_s = $mysqli->real_escape_string($doc_jur);
     $interno_dem_s = $mysqli->real_escape_string($interno_dem);
     $obs_dem_s = $mysqli->real_escape_string($obs_dem);
     $fecha_edit = date('Y-m-d H:i:s');
@@ -53,7 +52,14 @@ if($_SERVER['REQUEST_METHOD'] === 'POST'){
     $auto_val_sql = is_null($auto_admisorio) ? "auto_admisorio=NULL" : "auto_admisorio='" . $mysqli->real_escape_string($auto_admisorio) . "'";
     $realizada_sql = "realizada='" . $mysqli->real_escape_string($realizada) . "'";
 
-    $sql = "UPDATE demandas SET fecha_dem='$fecha_dem_s', accionante_dem='$accionante_dem_s', doc_dem='$doc_dem_s', rad_dem='$rad_dem_s', desp_judi_dem='$desp_judi_dem_s', est_act_proc_dem='$est_act_proc_dem_s', doc_jur='$doc_jur_s', interno_dem='$interno_dem_s', obs_dem='$obs_dem_s', fecha_edit_dem='$fecha_edit', id_usu='$id_usu', $auto_val_sql, $realizada_sql WHERE id_dem='$id_dem_s'";
+    // doc_jur opcional: si se asigna por primera vez se registra fecha_asignacion_jur (se preserva si ya existía)
+    $doc_jur_val = is_null($doc_jur) ? 'NULL' : "'" . $mysqli->real_escape_string($doc_jur) . "'";
+    $fecha_asignacion_expr = is_null($doc_jur) ? 'NULL' : 'COALESCE(fecha_asignacion_jur, NOW())';
+
+    // fecha_cierre se registra la primera vez que realizada=1 y se limpia si se desmarca
+    $fecha_cierre_expr = ($realizada == 1) ? 'COALESCE(fecha_cierre, NOW())' : 'NULL';
+
+    $sql = "UPDATE demandas SET fecha_dem='$fecha_dem_s', accionante_dem='$accionante_dem_s', doc_dem='$doc_dem_s', rad_dem='$rad_dem_s', desp_judi_dem='$desp_judi_dem_s', est_act_proc_dem='$est_act_proc_dem_s', doc_jur=$doc_jur_val, fecha_asignacion_jur=$fecha_asignacion_expr, interno_dem='$interno_dem_s', obs_dem='$obs_dem_s', fecha_edit_dem='$fecha_edit', id_usu='$id_usu', $auto_val_sql, $realizada_sql, fecha_cierre=$fecha_cierre_expr WHERE id_dem='$id_dem_s'";
 
     if($mysqli->query($sql)){
         echo json_encode(['success' => true, 'message' => 'Demanda actualizada correctamente']);

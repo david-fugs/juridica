@@ -63,6 +63,14 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 			/* gray */
 		}
 
+		.badge-warning {
+			background: #f39c12;
+		}
+
+		.badge-info {
+			background: #2c7be5;
+		}
+
 		/* Action buttons: neutral outline, hover filled */
 		.btn-action {
 			border-radius: 6px;
@@ -258,6 +266,13 @@ $tipo_usuario = $_SESSION['tipo_usuario'];
 									<input name="nom_jur" type="text" class="form-control" placeholder="Abogado Asignado" size=30
 										value="<?php echo isset($_GET['nom_jur']) ? $_GET['nom_jur'] : ''; ?>">
 								</div>
+								<div class="form-group mx-2">
+									<select name="asignacion" class="form-control">
+										<option value="">Todos (con/sin abogado)</option>
+										<option value="sin" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'sin') ? 'selected' : ''; ?>>Sin abogado asignado</option>
+										<option value="con" <?php echo (isset($_GET['asignacion']) && $_GET['asignacion'] == 'con') ? 'selected' : ''; ?>>Con abogado asignado</option>
+									</select>
+								</div>
 								<button type="submit" class="btn btn-primary mx-2">
 									<i class="fa-solid fa-search"></i> Buscar
 								</button>
@@ -282,13 +297,6 @@ if ($tipo_usuario == 1) {
 		$row_doc = $res_doc->fetch_assoc();
 		$doc_usuario_actual = $row_doc['documento'];
 	}
-    
-    // Filtro por estado realizada
-    if ($estado_filter === 'realizada') {
-        $where_conditions[] = "tutelas.realizada = 1";
-    } elseif ($estado_filter === 'activa') {
-        $where_conditions[] = "(tutelas.realizada = 0 OR tutelas.realizada IS NULL)";
-    }
 }
 
 // Obtener parámetros de búsqueda
@@ -312,6 +320,14 @@ if (!empty($tipo_tut)) {
 }
 if (!empty($nom_jur)) {
     $whereConditions[] = "u.nombre LIKE '%" . $mysqli->real_escape_string($nom_jur) . "%'";
+}
+
+// Filtro por asignación de abogado
+$asignacion_filter = isset($_GET['asignacion']) ? $_GET['asignacion'] : '';
+if ($asignacion_filter === 'sin') {
+    $whereConditions[] = "t.doc_jur IS NULL";
+} elseif ($asignacion_filter === 'con') {
+    $whereConditions[] = "t.doc_jur IS NOT NULL";
 }
 
 $whereClause = '';
@@ -352,6 +368,8 @@ if ($base_qs) $base_qs .= '&';
 										<th>Nombre</th>
 										<th>Tipo</th>
 										<th>Abogado</th>
+										<th>Días (creación)</th>
+										<th>Días (abogado)</th>
 										<th>Estado</th>
 										<th>Observaciones</th>
 										<th>Acciones</th>
@@ -359,21 +377,43 @@ if ($base_qs) $base_qs .= '&';
 								</thead>
 								<tbody>
 									<?php
-									$sql = "SELECT t.id_tut, t.fecha_tut, t.nom_tut, t.tipo_tut, t.estado_tut, t.obs_tut, u.nombre as nom_jur 
-										FROM tutelas t 
-										LEFT JOIN usuarios u ON t.doc_jur = u.documento 
-										$whereClause 
-										ORDER BY t.id_tut DESC 
+									$sql = "SELECT t.id_tut, t.fecha_tut, t.nom_tut, t.tipo_tut, t.doc_jur, t.fecha_alta_tut, t.fecha_asignacion_jur, t.estado_tut, t.fecha_cierre, t.obs_tut, u.nombre as nom_jur
+										FROM tutelas t
+										LEFT JOIN usuarios u ON t.doc_jur = u.documento
+										$whereClause
+										ORDER BY t.id_tut DESC
 										LIMIT {$per_page} OFFSET {$offset}";
 									$res = $mysqli->query($sql);
 									if ($res && $res->num_rows > 0) {
 										while ($row = $res->fetch_assoc()) {
+											// Días desde creación y desde asignación de abogado (se congelan al cerrar el caso)
+											$dias_creacion = null;
+											if (!empty($row['fecha_alta_tut'])) {
+												$fin_dc = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_creacion = max(0, floor(($fin_dc - strtotime($row['fecha_alta_tut'])) / 86400));
+											}
+											$dias_asignacion = null;
+											if (!empty($row['fecha_asignacion_jur'])) {
+												$fin_da = !empty($row['fecha_cierre']) ? strtotime($row['fecha_cierre']) : time();
+												$dias_asignacion = max(0, floor(($fin_da - strtotime($row['fecha_asignacion_jur'])) / 86400));
+											}
+											$estado_badge_class = 'badge-inactive';
+											switch ($row['estado_tut']) {
+												case 'Activa': $estado_badge_class = 'badge-active'; break;
+												case 'En proceso': $estado_badge_class = 'badge-warning'; break;
+												case 'Resuelta': $estado_badge_class = 'badge-info'; break;
+												case 'Fallada':
+												case 'Archivada':
+												case 'Cerrada': $estado_badge_class = 'badge-inactive'; break;
+											}
 											echo '<tr>';
 											echo '<td>' . htmlspecialchars($row['fecha_tut']) . '</td>';
 											echo '<td><span class="single-line-ellipsis" title="' . htmlspecialchars($row['nom_tut']) . '">' . htmlspecialchars($row['nom_tut']) . '</span></td>';
 											echo '<td>' . htmlspecialchars($row['tipo_tut']) . '</td>';
-											echo '<td>' . htmlspecialchars($row['nom_jur']) . '</td>';
-											echo '<td>' . htmlspecialchars($row['estado_tut']) . '</td>';
+											echo '<td>' . (!empty($row['nom_jur']) ? htmlspecialchars($row['nom_jur']) : '<span class="badge-role badge-inactive">Sin asignar</span>') . '</td>';
+											echo '<td>' . ($dias_creacion !== null ? intval($dias_creacion) . ' d.' : '—') . '</td>';
+											echo '<td>' . ($dias_asignacion !== null ? intval($dias_asignacion) . ' d.' : '—') . '</td>';
+											echo '<td><span class="badge-role ' . $estado_badge_class . '">' . htmlspecialchars($row['estado_tut']) . '</span></td>';
 											echo '<td><span class="single-line-ellipsis" title="' . htmlspecialchars($row['obs_tut']) . '">' . htmlspecialchars($row['obs_tut']) . '</span></td>';
 											echo '<td>';
 											echo '<div class="action-group">';
@@ -384,7 +424,7 @@ if ($base_qs) $base_qs .= '&';
 											echo '</tr>';
 										}
 									} else {
-										echo '<tr><td colspan="7" class="text-center">No se encontraron tutelas</td></tr>';
+										echo '<tr><td colspan="9" class="text-center">No se encontraron tutelas</td></tr>';
 									}
 									?>
 								</tbody>
@@ -462,6 +502,8 @@ if ($base_qs) $base_qs .= '&';
 									<option value="Activa">Activa</option>
 									<option value="En proceso">En proceso</option>
 									<option value="Resuelta">Resuelta</option>
+									<option value="Fallada">Fallada</option>
+									<option value="Archivada">Archivada</option>
 									<option value="Cerrada">Cerrada</option>
 								</select>
 							</div>
@@ -469,16 +511,23 @@ if ($base_qs) $base_qs .= '&';
 
 						<div class="form-row">
 							<div class="form-group col-md-12">
-								<label>Abogado Asignado</label>
-								<select name="doc_jur" class="form-control" required>
+								<label>Abogado Asignado <small class="text-muted">(opcional)</small></label>
+								<select name="doc_jur" class="form-control" <?php echo ($tipo_usuario == 1) ? 'disabled' : ''; ?>>
 									<option value="">-- Seleccione abogado --</option>
 									<?php
-									$q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '2' ORDER BY nombre");
+									if ($tipo_usuario == 1 && !empty($doc_usuario_actual)) {
+										$q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE documento = '" . $mysqli->real_escape_string($doc_usuario_actual) . "'");
+									} else {
+										$q = $mysqli->query("SELECT documento, nombre FROM usuarios WHERE tipo_usuario = '1' ORDER BY nombre");
+									}
 									while ($u = $q->fetch_assoc()) {
-										echo '<option value="' . htmlspecialchars($u['documento']) . '">' . htmlspecialchars($u['nombre']) . '</option>';
+										echo '<option value="' . htmlspecialchars($u['documento']) . '"' . ($tipo_usuario == 1 ? ' selected' : '') . '>' . htmlspecialchars($u['nombre']) . '</option>';
 									}
 									?>
 								</select>
+								<?php if ($tipo_usuario == 1 && !empty($doc_usuario_actual)): ?>
+									<input type="hidden" name="doc_jur" value="<?php echo htmlspecialchars($doc_usuario_actual); ?>">
+								<?php endif; ?>
 							</div>
 						</div>
 
